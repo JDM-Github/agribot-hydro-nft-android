@@ -1,227 +1,261 @@
-import 'package:android/utils/colors.dart';
+import 'package:android/classes/snackbar.dart';
 import 'package:flutter/material.dart';
+import 'package:android/utils/colors.dart';
+import 'package:android/utils/struct.dart';
 
 class PlantDetailScreen extends StatefulWidget {
-  const PlantDetailScreen({super.key});
+  final Plant plant;
+  final DetectedPlant detectedPlant;
+  final void Function(DetectedPlant) onUpdate;
+  final void Function(String) onRemove;
+
+  const PlantDetailScreen({
+    super.key,
+    required this.plant,
+    required this.detectedPlant,
+    required this.onUpdate,
+    required this.onRemove,
+  });
 
   @override
   State<PlantDetailScreen> createState() => _PlantDetailScreenState();
 }
 
 class _PlantDetailScreenState extends State<PlantDetailScreen> {
-  final Map<String, dynamic> plant = {
-    'image': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSJKRPXQYgZjJmuQTgXVQNLoZRxRWe7aW09wg&s',
-    'name': 'Tomato Plant',
-    'description': 'A healthy tomato plant known for its vibrant fruits and moderate care requirements.',
-    'diseases': [
-      {
-        'name': 'Late Blight',
-        'description': 'A fungal disease causing dark spots on leaves and fruits.',
-        'image': 'https://placehold.co/600x400.png',
-        'sprays': ['Copper Fungicide', 'Neem Oil'],
-        'severity': 'High'
-      },
-      {
-        'name': 'Powdery Mildew',
-        'description': 'A white, powdery fungus that covers leaves, reducing photosynthesis.',
-        'image': 'https://placehold.co/600x400.png',
-        'sprays': ['Sulfur Spray', 'Neem Oil'],
-        'severity': 'Moderate'
-      },
-      {
-        'name': 'Bacterial Spot',
-        'description': 'Small, water-soaked lesions on leaves that grow into dark, necrotic spots.',
-        'image': 'https://placehold.co/600x400.png',
-        'sprays': ['Copper Fungicide'],
-        'severity': 'Low'
-      }
-    ]
-  };
+  bool willSprayEarly = false;
+  bool disabled = false;
+  int? expandedIndex;
+  Map<String, List<bool>> slotBindings = {};
+  Map<String, List<String>> sprayTimes = {};
+
+  late DetectedPlant _tempDetectedPlant;
+  late DetectedPlant detectedPlant;
+
+  @override
+  void initState() {
+    super.initState();
+    detectedPlant = widget.detectedPlant;
+    _tempDetectedPlant = widget.detectedPlant.copy();
+    willSprayEarly = _tempDetectedPlant.willSprayEarly;
+    for (var d in widget.plant.diseases) {
+      slotBindings[d.name] = _tempDetectedPlant.disease[d.name] ?? [false, false, false, false];
+      sprayTimes[d.name] = _tempDetectedPlant.diseaseTimeSpray[d.name] ?? ["06:00", "18:00"];
+    }
+  }
+
+  void updatePlant() {
+    setState(() {
+      detectedPlant = detectedPlant.create(willSprayEarly, slotBindings, sprayTimes, disabled);
+    });
+    widget.onUpdate(detectedPlant);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).brightness == Brightness.dark ? AppColors.gray800 : AppColors.gray200,
+      backgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray800),
       appBar: AppBar(
-        title: Text(plant['name']),
+        title: Text(widget.plant.name),
         backgroundColor: AppColors.themedColor(context, AppColors.white, AppColors.gray900),
+        actions: [
+          Row(
+            children: [
+              const Text("Spray Early", style: TextStyle(fontSize: 12)),
+              Switch(
+                value: willSprayEarly,
+                onChanged: (v) => setState(() => willSprayEarly = v),
+              ),
+            ],
+          ),
+        ],
       ),
       body: SingleChildScrollView(
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
               width: double.infinity,
               height: 200,
+              margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
                 image: DecorationImage(
-                  image: NetworkImage(plant['image']),
+                  image: NetworkImage(widget.plant.image),
                   fit: BoxFit.cover,
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    plant['name'],
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            Text(widget.plant.description, style: const TextStyle(fontSize: 16, color: Colors.grey)),
+            const SizedBox(height: 16),
+            Column(
+              children: widget.plant.diseases.asMap().entries.map((entry) {
+                final index = entry.key;
+                final disease = entry.value;
+                final isExpanded = expandedIndex == index;
+
+                return Card(
+                  color: AppColors.themedColor(context, Colors.grey[100]!, AppColors.gray700),
+                  margin: const EdgeInsets.symmetric(vertical: 6),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  SizedBox(height: 4),
-                  Text(
-                    plant['description'],
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
-                  ),
-                  SizedBox(height: 12),
-                  Column(
-                    children: plant['diseases'].map<Widget>((disease) {
-                      return _buildDiseaseCard(disease);
-                    }).toList(),
-                  ),
-                  SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          foregroundColor: Colors.white,
-                          padding: EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        onPressed: () {},
-                        child: Row(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Icon(Icons.delete, size: 18, color: Colors.white),
-                            SizedBox(width: 6),
-                            Text("Delete Record"),
+                            Text(disease.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                            IconButton(
+                              icon: Icon(isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down),
+                              onPressed: () {
+                                setState(() {
+                                  expandedIndex = isExpanded ? null : index;
+                                });
+                              },
+                            ),
                           ],
                         ),
-                      ),
-                      SizedBox(width: 10),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).brightness == Brightness.dark
-                              ? Colors.grey[800] 
-                              : Colors.grey[300],
-                          foregroundColor: Theme.of(context).brightness == Brightness.dark
-                              ? Colors.white
-                              : Colors.black, 
-                          padding: EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-                          shape: RoundedRectangleBorder(
+
+                        if (isExpanded) ...[
+                          const SizedBox(height: 8),
+                          ClipRRect(
                             borderRadius: BorderRadius.circular(8),
+                            child: Image.network(disease.image, height: 120, width: double.infinity, fit: BoxFit.cover),
                           ),
+                          const SizedBox(height: 8),
+                          Text(disease.description, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+                        ],
+
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          children: disease.sprays.map((spray) {
+                            return Chip(
+                              label: Text("💧 $spray"),
+                              backgroundColor: AppColors.themedColor(context, Colors.blue[50]!, AppColors.gray800),
+                            );
+                          }).toList(),
                         ),
-                        onPressed: () {
-                          Navigator.pop(context);
-                        },
-                        child: Row(
+
+                        const SizedBox(height: 10),
+                        Row(
                           children: [
-                            Icon(Icons.close, size: 18, color: Colors.white),
-                            SizedBox(width: 6),
-                            Text("Close"),
+                            const Text("Spray Time:"),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: TextFormField(
+                                initialValue: sprayTimes[disease.name]![0],
+                                decoration: const InputDecoration(
+                                  border: OutlineInputBorder(),
+                                  isDense: true,
+                                ),
+                                onChanged: (val) => sprayTimes[disease.name]![0] = val,
+                              ),
+                            ),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 8),
+                              child: Text("to"),
+                            ),
+                            Expanded(
+                              child: TextFormField(
+                                initialValue: sprayTimes[disease.name]![1],
+                                decoration: const InputDecoration(
+                                  border: OutlineInputBorder(),
+                                  isDense: true,
+                                ),
+                                onChanged: (val) => sprayTimes[disease.name]![1] = val,
+                              ),
+                            ),
                           ],
                         ),
-                      ),
-                    ],
-                  )
 
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDiseaseCard(Map<String, dynamic> disease) {
-    return Card(
-      color: Theme.of(context).brightness == Brightness.dark ? AppColors.gray700 : Colors.grey[200],
-      margin: EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Padding(
-        padding: EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              disease['name'],
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 8),
-
-            Container(
-              width: double.infinity,
-              height: 120,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                image: DecorationImage(
-                  image: NetworkImage(disease['image']),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-            SizedBox(height: 8),
-
-            Text(
-              disease['description'],
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-            ),
-            SizedBox(height: 8),
-
-            Wrap(
-              spacing: 8,
-              children: disease['sprays'].map<Widget>((spray) {
-                return Chip(
-                  label: Text(spray),
-                  avatar: Icon(Icons.water_drop, color: Colors.blue, size: 18),
-                  backgroundColor: Theme.of(context).brightness == Brightness.dark ? AppColors.gray800 : Colors.blue[50],
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            _buildSlotButton("None", disease.name, reset: true),
+                            for (int i = 0; i < 4; i++)
+                              _buildSlotButton("Bind to Slot ${i + 1}", disease.name, index: i),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                 );
               }).toList(),
             ),
-            SizedBox(height: 12),
-
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildBindButton("None", isSelected: true),
-                  SizedBox(width: 8),
-                  for (int i = 1; i <= 4; i++) ...[
-                    _buildBindButton("Bind to Empty $i"),
-                    SizedBox(width: 8),
-                  ]
-                ],
-              ),
-            )
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red[600]),
+                  onPressed: () {
+                    setState(() {
+                      disabled = true;
+                    });
+                    updatePlant();
+                    AppSnackBar.success(context, "Successfully disabled ${widget.plant.name}.");
+                    Navigator.pop(context);
+                  },
+                  child: const Text("Disable",
+                    style: TextStyle(color: AppColors.white)),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red[900]),
+                  onPressed: () {
+                    widget.onRemove(widget.detectedPlant.key);
+                    AppSnackBar.success(context, "Successfully removed ${widget.plant.name}.");
+                    Navigator.pop(context, null);
+                  },
+                  child: const Text("Remove", style: TextStyle(color: AppColors.white)),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green[700]),
+                  onPressed: () {
+                    updatePlant();
+                    AppSnackBar.success(context, "Successfully update the ${widget.plant.name}.");
+                    Navigator.pop(context);
+                  },
+                  child: const Text("Save & Close", style: TextStyle(color: AppColors.white)),
+                ),
+              ],
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildBindButton(String text, {bool isSelected = false}) {
+  Widget _buildSlotButton(String text, String diseaseName, {int? index, bool reset = false}) {
+    final slots = slotBindings[diseaseName]!;
+    final isSelected = reset ? !slots.contains(true) : (index != null && slots[index]);
+
     return GestureDetector(
-      onTap: () {},
+      onTap: () {
+        setState(() {
+          if (reset) {
+            slotBindings[diseaseName] = [false, false, false, false];
+          } else if (index != null) {
+            slots[index] = !slots[index];
+          }
+        });
+      },
       child: Container(
-        padding: EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.red : Colors.grey[300],
+          color: isSelected ? ((text == "None") ? Colors.red : Colors.green) : AppColors.gray300,
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Text(
-          text,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: isSelected ? Colors.white : Colors.black,
-          ),
-        ),
+        child:
+            Text(text, style: TextStyle(color: isSelected ? Colors.white : Colors.black, fontWeight: FontWeight.bold)),
       ),
     );
   }

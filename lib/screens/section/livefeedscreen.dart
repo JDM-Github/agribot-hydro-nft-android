@@ -29,40 +29,6 @@ class LiveFeedScreen extends StatelessWidget {
           Expanded(
             flex: 2,
             child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: AppColors.themedColor(context, AppColors.gray50, AppColors.gray800),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                padding: EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "CAMERA INFORMATION",
-                      style: TextStyle(
-                        color: AppColors.themedColor(context, AppColors.gray900, AppColors.gray50),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Divider(color: AppColors.themedColor(context, AppColors.gray300, AppColors.gray700)),
-                    _infoRow(context, "Record Day:", "Tue Mar 25 2025"),
-                    _infoRow(context, "Status:", "Idle"),
-                    _infoRow(context, "Position:", "X: 0, Y: 0"),
-                    _infoRow(context, "GPS Location:", "37.7749° N, 122.4194° W"),
-                    _infoRow(context, "Time:", "1:17:23 PM"),
-                    _infoRow(context, "Detected Plant:", "Tomato"),
-                    _infoRow(context, "Disease:", "Powdery Mildew"),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          Expanded(
-            flex: 2,
-            child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8.0),
               child: Container(
                 decoration: BoxDecoration(
@@ -111,23 +77,6 @@ class LiveFeedScreen extends StatelessWidget {
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _infoRow(BuildContext context, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label,
-              style:
-                  TextStyle(color: AppColors.themedColor(context, AppColors.gray600, AppColors.gray400), fontSize: 14)),
-          Text(value,
-              style:
-                  TextStyle(color: AppColors.themedColor(context, AppColors.gray900, AppColors.gray50), fontSize: 14)),
         ],
       ),
     );

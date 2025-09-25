@@ -1,232 +1,300 @@
+import 'package:android/classes/snackbar.dart';
+import 'package:android/handle_request.dart';
+import 'package:android/screens/section/folderdetail.dart';
+import 'package:android/store/data.dart';
 import 'package:android/utils/colors.dart';
+import 'package:android/utils/struct.dart';
 import 'package:flutter/material.dart';
 
 class FolderSection extends StatefulWidget {
-  const FolderSection({super.key});
+  final String email;
+  final List<FolderRecord> records;
+  const FolderSection({super.key, required this.records, required this.email});
 
   @override
   State<FolderSection> createState() => _FolderSectionState();
 }
 
 class _FolderSectionState extends State<FolderSection> {
-  List<Map<String, String>> files = [
-    {
-      "name": "Tomato Leaf",
-      "imageUrl": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSJKRPXQYgZjJmuQTgXVQNLoZRxRWe7aW09wg&s"
-    },
-    {
-      "name": "Cucumber Spot",
-      "imageUrl": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSJKRPXQYgZjJmuQTgXVQNLoZRxRWe7aW09wg&s"
-    },
-    {
-      "name": "Strawberry Blight",
-      "imageUrl": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSJKRPXQYgZjJmuQTgXVQNLoZRxRWe7aW09wg&s"
-    },
-    {
-      "name": "Lettuce Disease",
-      "imageUrl": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSJKRPXQYgZjJmuQTgXVQNLoZRxRWe7aW09wg&s"
-    },
-    {
-      "name": "Grape Infection",
-      "imageUrl": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSJKRPXQYgZjJmuQTgXVQNLoZRxRWe7aW09wg&s"
-    },
-    {
-      "name": "Apple Rust",
-      "imageUrl": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSJKRPXQYgZjJmuQTgXVQNLoZRxRWe7aW09wg&s"
-    },
-    {
-      "name": "Corn Leaf Blight",
-      "imageUrl": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSJKRPXQYgZjJmuQTgXVQNLoZRxRWe7aW09wg&s"
-    },
-  ];
-
-  List<Map<String, String>> filteredFiles = [];
+  late List<FolderRecord> filteredRecords;
   String searchQuery = "";
-  String selectedSort = "Name";
-  int gridCount = 4;
+  String sortOrder = "desc";
+  int currentPage = 1;
+  int itemsPerPage = 12;
+  FolderRecord? selectedFolder;
 
   @override
   void initState() {
     super.initState();
-    filteredFiles = List.from(files);
+    filteredRecords = List.from(widget.records);
+    _sortRecords();
   }
 
-  void filterFiles(String query) {
+  void _filterRecords(String query) {
     setState(() {
       searchQuery = query.toLowerCase();
-      filteredFiles = files.where((file) {
-        return file["name"]!.toLowerCase().contains(searchQuery);
+      filteredRecords = widget.records.where((record) {
+        return record.date.toLowerCase().contains(searchQuery);
       }).toList();
+      currentPage = 1;
+      _sortRecords();
     });
   }
 
-  void sortFiles(String criteria) {
+  void _sortRecords([String? order]) {
+    if (order != null) sortOrder = order;
+    filteredRecords.sort((a, b) {
+      DateTime dateA = DateTime.parse(a.date);
+      DateTime dateB = DateTime.parse(b.date);
+      return sortOrder == "asc" ? dateA.compareTo(dateB) : dateB.compareTo(dateA);
+    });
+  }
+
+  List<FolderRecord> _paginatedRecords() {
+    int start = (currentPage - 1) * itemsPerPage;
+    int end = start + itemsPerPage;
+    return filteredRecords.sublist(
+      start,
+      end > filteredRecords.length ? filteredRecords.length : end,
+    );
+  }
+
+  int get totalPages => (filteredRecords.length / itemsPerPage).ceil().clamp(1, 1000);
+
+  void _goToPage(int page) {
     setState(() {
-      selectedSort = criteria;
-      if (criteria == "Name") {
-        filteredFiles.sort((a, b) => a["name"]!.compareTo(b["name"]!));
+      currentPage = page.clamp(1, totalPages);
+    });
+  }
+
+  void _deleteFolder(String slug) {
+    setState(() {
+      filteredRecords.removeWhere((r) => r.slug == slug);
+      widget.records.removeWhere((r) => r.slug == slug);
+      selectedFolder = null;
+      if (currentPage > totalPages) currentPage = totalPages;
+    });
+  }
+
+  void _openFolder(String slug) async {
+    final folder = widget.records.firstWhere((f) => f.slug == slug);
+    UserDataStore store = UserDataStore();
+
+    final now = DateTime.now();
+    final currentDaySlug = '${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}${now.year}';
+
+    List<Map<String, dynamic>>? images;
+    if (slug != currentDaySlug && store.folderImages.value.containsKey(slug)) {
+      images = store.folderImages.value[slug];
+    }
+
+    final handler = RequestHandler();
+    if (images == null) {
+      AppSnackBar.loading(context, "Loading folder images...", id: "folder");
+      try {
+        final email = widget.email;
+        if (email.isEmpty) {
+          AppSnackBar.hide(context, id: "folder");
+          AppSnackBar.error(context, "User email is missing");
+          return;
+        }
+
+        final response = await handler.handleRequest(
+          "folder-images/$slug",
+          method: "POST",
+          body: {'email': email},
+        );
+
+        if (mounted) AppSnackBar.hide(context, id: "folder");
+
+        if (response['success'] == true) {
+          final imagesJson = response['images'] as List<dynamic>;
+          images = imagesJson.map((img) => img as Map<String, dynamic>).toList();
+          final cached = store.folderImages.value;
+          if (cached.containsKey(slug)) {
+            cached[slug] = images;
+            store.folderImages.value = {...cached};
+          } else {
+            store.folderImages.value = {...cached, slug: images};
+          }
+          await store.saveData();
+        } else {
+          if (mounted) {
+            AppSnackBar.error(context, response['message'] ?? "Failed to load folder images");
+          }
+          return;
+        }
+      } catch (e) {
+        if (mounted) {
+          AppSnackBar.hide(context, id: "folder");
+          AppSnackBar.error(context, "An error occurred: $e");
+        }
+        return;
       }
-    });
+    }
+
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => FolderDetailPage(
+            slug: slug,
+            folderName: folder.name,
+            images: images!,
+          ),
+        ),
+      );
+    }
   }
 
-  void updateGridSize(int count) {
-    setState(() {
-      gridCount = count;
-    });
+
+  void _showContextMenu(BuildContext context, Offset position, FolderRecord folder) {
+    selectedFolder = folder;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    showMenu(
+      context: context,
+      position: RelativeRect.fromRect(
+        Rect.fromPoints(position, position),
+        Offset.zero & overlay!.size,
+      ),
+      items: [
+        PopupMenuItem(
+          child: Row(
+            children: const [
+              Icon(Icons.folder_open, size: 18),
+              SizedBox(width: 8),
+              Text("Open"),
+            ],
+          ),
+          onTap: () => _openFolder(folder.slug),
+        ),
+        PopupMenuItem(
+          child: Row(
+            children: const [
+              Icon(Icons.delete, size: 18, color: Colors.red),
+              SizedBox(width: 8),
+              Text("Delete", style: TextStyle(color: Colors.red)),
+            ],
+          ),
+          onTap: () => _deleteFolder(folder.slug),
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    List<FolderRecord> pageRecords = _paginatedRecords();
+
     return Column(
       children: [
         Container(
-          decoration: BoxDecoration(
-            color: AppColors.themedColor(context, AppColors.gray200, AppColors.gray800), // 🔥 Fixed Background
+          padding: const EdgeInsets.all(8),
+          color: AppColors.themedColor(context, AppColors.gray200, AppColors.gray800),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: "Search Records...",
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onChanged: _filterRecords,
+                ),
+              ),
+              const SizedBox(width: 8),
+              DropdownButton<String>(
+                value: sortOrder,
+                items: const [
+                  DropdownMenuItem(value: "desc", child: Text("Newest First")),
+                  DropdownMenuItem(value: "asc", child: Text("Oldest First")),
+                ],
+                onChanged: (value) => setState(() => _sortRecords(value)),
+              ),
+            ],
           ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            child: Row(
-              children: [
-                // 🔍 Search Bar
-                Expanded(
-                  child: TextField(
-                    style: TextStyle(
-                      color:
-                          AppColors.themedColor(context, AppColors.gray900, AppColors.gray50), // 🔥 Adaptive Text Color
-                      fontSize: 14,
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.all(8),
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 150,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+              childAspectRatio: 0.9,
+            ),
+            itemCount: pageRecords.length,
+            itemBuilder: (context, index) {
+              var record = pageRecords[index];
+              return GestureDetector(
+                onTap: () => _openFolder(record.slug),
+                onSecondaryTapDown: (details) => _showContextMenu(context, details.globalPosition, record),
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.themedColor(
+                            context,
+                            AppColors.gray100,
+                            AppColors.gray800.withAlpha(100),
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Center(
+                          child: Icon(
+                            Icons.folder,
+                            size: 50,
+                            color: AppColors.themedColor(
+                              context,
+                              AppColors.gray700,
+                              AppColors.gray300,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                    decoration: InputDecoration(
-                      hintText: "Search...",
-                      hintStyle: TextStyle(
+                    const SizedBox(height: 4),
+                    Text(
+                      record.date,
+                      style: TextStyle(
                         color: AppColors.themedColor(
-                            context, AppColors.gray600, AppColors.gray400), // 🔥 Adaptive Hint Color
+                          context,
+                          AppColors.textLight,
+                          AppColors.textDark,
+                        ),
                         fontSize: 12,
                       ),
-                      prefixIcon: Icon(
-                        Icons.search,
-                        color: AppColors.themedColor(
-                            context, AppColors.gray700, AppColors.gray400), // 🔥 Adaptive Icon Color
-                        size: 18,
-                      ),
-                      filled: true,
-                      fillColor:
-                          AppColors.themedColor(context, AppColors.gray50, AppColors.gray800), // 🔥 Adaptive Fill Color
-                      contentPadding: EdgeInsets.symmetric(vertical: 4, horizontal: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(
-                          color: AppColors.themedColor(
-                              context, AppColors.gray500, AppColors.gray700), // 🔥 Adaptive Border
-                          width: 1,
-                        ),
-                      ),
-                    ),
-                    onChanged: filterFiles,
-                  ),
-                ),
-                SizedBox(width: 10),
-
-                // 🔄 Sort Button
-                PopupMenuButton<String>(
-                  color: AppColors.themedColor(context, AppColors.gray50, AppColors.gray900), // 🔥 Adaptive Menu Color
-                  onSelected: sortFiles,
-                  itemBuilder: (context) => [
-                    PopupMenuItem(
-                      value: "Name",
-                      child: Text("Sort by Name",
-                          style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.themedColor(context, AppColors.gray900, AppColors.gray50))),
-                    ),
-                    PopupMenuItem(
-                      value: "Date",
-                      child: Text("Sort by Date",
-                          style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.themedColor(context, AppColors.gray900, AppColors.gray50))),
+                      textAlign: TextAlign.center,
                     ),
                   ],
-                  icon: Icon(Icons.sort,
-                      color: AppColors.themedColor(context, AppColors.gray900, AppColors.gray50),
-                      size: 18), // 🔥 Adaptive Icon
                 ),
-                SizedBox(width: 10),
-
-                DropdownButton<int>(
-                  value: gridCount,
-                  dropdownColor: AppColors.themedColor(
-                      context, AppColors.gray50, AppColors.gray900), // 🔥 Adaptive Dropdown Background
-                  icon: Icon(Icons.grid_view,
-                      color: AppColors.themedColor(context, AppColors.gray900, AppColors.gray50),
-                      size: 18), // 🔥 Adaptive Icon
-                  items: [3, 4, 5].map((count) {
-                    return DropdownMenuItem(
-                      value: count,
-                      child: Text(
-                        "$count Columns",
-                        style: TextStyle(
-                          color:
-                              AppColors.themedColor(context, AppColors.gray900, AppColors.gray50), // 🔥 Adaptive Text
-                          fontSize: 12,
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      updateGridSize(value);
-                    }
-                  },
+              );
+            },
+          ),
+        ),
+        if (filteredRecords.length > itemsPerPage)
+          Padding(
+            padding: const EdgeInsets.all(4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  onPressed: currentPage > 1 ? () => _goToPage(currentPage - 1) : null,
+                  child: const Text("← Prev"),
+                ),
+                const SizedBox(width: 12),
+                Text("Page $currentPage of $totalPages"),
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  onPressed: currentPage < totalPages ? () => _goToPage(currentPage + 1) : null,
+                  child: const Text("Next →"),
                 ),
               ],
             ),
           ),
-        ),
-        SizedBox(height: 10),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: GridView.builder(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: gridCount,
-                crossAxisSpacing: 5,
-                mainAxisSpacing: 5,
-                childAspectRatio: 0.9,
-              ),
-              itemCount: filteredFiles.length,
-              itemBuilder: (context, index) {
-                var file = filteredFiles[index];
-                return GestureDetector(
-                    onTap: () {},
-                    child: Column(
-                      children: [
-                        Expanded(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(6),
-                              color: AppColors.gray800.withAlpha(100),
-                            ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.folder,
-                                size: 50,
-                                color: AppColors.gray500, 
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          file["name"]!,
-                          style: const TextStyle(color: Colors.white, fontSize: 12),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ));
-              },
-            ),
-          ),
-        ),
       ],
     );
   }
