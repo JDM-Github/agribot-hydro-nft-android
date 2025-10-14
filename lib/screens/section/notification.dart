@@ -1,29 +1,54 @@
 import 'package:android/classes/snackbar.dart';
 import 'package:android/handle_request.dart';
+import 'package:android/modals/notification_detail.dart';
 import 'package:android/store/data.dart';
 import 'package:flutter/material.dart';
 import 'package:android/utils/colors.dart';
-import 'package:intl/intl.dart';
 
 class NotificationScreen extends StatefulWidget {
   final List<dynamic> notifications;
+  final Set<void> Function() hide;
 
-  const NotificationScreen({super.key, required this.notifications});
+  const NotificationScreen({super.key, required this.notifications, required this.hide});
 
   @override
   State<NotificationScreen> createState() => _NotificationScreenState();
 }
 
-class _NotificationScreenState extends State<NotificationScreen> {
+class _NotificationScreenState extends State<NotificationScreen> with SingleTickerProviderStateMixin {
   List<dynamic> filteredNotifications = [];
+  dynamic targetNotif;
+  int selectedIndex = 0;
   String searchQuery = "";
   String selectedSort = "Newest";
+  ValueNotifier<bool> showNotifModal = ValueNotifier(false);
+  UserDataStore data = UserDataStore();
+  late final AnimationController _controller;
+  late final List<Animation<Offset>> _animations;
 
   @override
   void initState() {
     super.initState();
     filteredNotifications = List.from(widget.notifications);
     _sortNotifications("Newest");
+
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    );
+
+    _animations = List.generate(filteredNotifications.length, (index) {
+      final total = filteredNotifications.length;
+      final start = index / total;
+      final end = (start + 0.5 / total).clamp(0.0, 1.0);
+      return Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
+        CurvedAnimation(
+          parent: _controller,
+          curve: Interval(start, end, curve: Curves.easeOut),
+        ),
+      );
+    });
+    _controller.forward();
   }
 
   void filterNotifications(String query) {
@@ -46,6 +71,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
         filteredNotifications.sort((a, b) => DateTime.parse(a["createdAt"]).compareTo(DateTime.parse(b["createdAt"])));
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   Icon _getTypeIcon(String type, bool isRead) {
@@ -73,30 +104,20 @@ class _NotificationScreenState extends State<NotificationScreen> {
     );
   }
 
-  String _formatTime(String timestamp) {
-    try {
-      final dt = DateTime.parse(timestamp).toLocal();
-      return DateFormat("MMM d, HH:mm").format(dt);
-    } catch (_) {
-      return timestamp;
-    }
-  }
-
   Future<void> _markAsRead(int index) async {
     final notif = filteredNotifications[index];
     if (notif["isRead"] == true) return;
-
-    final store = UserDataStore();
     AppSnackBar.loading(context, "Marking notification as read...", id: "notif");
 
+    final data = UserDataStore();
     final handler = RequestHandler();
     final id = notif['id'];
 
     try {
       final response = await handler.handleRequest(
-        "notification/mark-read/$id",
-        method: "PUT",
-        body: {},
+        "notification/mark-read",
+        method: "POST",
+        body: {'id': data.user.value['id'], 'notifId': id, 'deviceID': data.uuid.value},
       );
 
       if (!mounted) return;
@@ -104,13 +125,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
       if (response['success'] == true) {
         setState(() {
           filteredNotifications[index]["isRead"] = true;
-          final mainIndex = store.notifications.value.indexWhere((n) => n['id'] == id);
+          final mainIndex = data.notifications.value.indexWhere((n) => n['id'] == id);
           if (mainIndex != -1) {
-            store.notifications.value[mainIndex]['isRead'] = true;
+            data.notifications.value[mainIndex]['isRead'] = true;
           }
         });
-        await store.saveNotifications(store.notifications.value);
-
+        await data.saveNotifications(data.notifications.value);
         if (mounted) {
           AppSnackBar.hide(context, id: "notif");
           AppSnackBar.success(context, "Notification marked successfully.");
@@ -128,159 +148,164 @@ class _NotificationScreenState extends State<NotificationScreen> {
     }
   }
 
-  void _showNotificationDetail(int index) {
-    final notif = filteredNotifications[index];
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            _getTypeIcon(notif["type"] ?? "info", notif["isRead"] == true),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                notif["title"] ?? "",
-                style: TextStyle(fontWeight: notif["isRead"] == true ? FontWeight.normal : FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Text(notif["message"] ?? ""),
-        ),
-        actions: [
-          Text(
-            _formatTime(notif["createdAt"] ?? ""),
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text("Close"),
-          ),
-        ],
-      ),
-    );
-
-    // Mark as read if not already
-    if (notif["isRead"] != true) _markAsRead(index);
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            color: AppColors.themedColor(context, AppColors.gray200, AppColors.gray800),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    style: TextStyle(
-                      color: AppColors.themedColor(context, AppColors.gray900, AppColors.gray50),
-                      fontSize: 14,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: "Search notifications...",
-                      hintStyle: TextStyle(
-                        color: AppColors.themedColor(context, AppColors.gray600, AppColors.gray400),
-                        fontSize: 12,
-                      ),
-                      prefixIcon: Icon(
-                        Icons.search,
-                        color: AppColors.themedColor(context, AppColors.gray700, AppColors.gray400),
-                        size: 18,
-                      ),
-                      filled: true,
-                      fillColor: AppColors.themedColor(context, AppColors.gray50, AppColors.gray900),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(
-                          color: AppColors.themedColor(context, AppColors.gray500, AppColors.gray700),
-                          width: 1,
+    return Stack(children: [
+      Column(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      decoration: InputDecoration(
+                        hintText: "Search Folders...",
+                        hintStyle: const TextStyle(fontSize: 13),
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(6),
+                            borderSide: const BorderSide(color: AppColors.gray600)),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: AppColors.green500),
                         ),
                       ),
+                      style: const TextStyle(fontSize: 13),
+                      onChanged: filterNotifications,
                     ),
-                    onChanged: filterNotifications,
                   ),
-                ),
-                const SizedBox(width: 10),
-                PopupMenuButton<String>(
-                  color: AppColors.themedColor(context, AppColors.gray50, AppColors.gray900),
-                  onSelected: _sortNotifications,
-                  itemBuilder: (context) => [
-                    PopupMenuItem(
-                      value: "Newest",
-                      child: Text(
-                        "Sort by Newest",
-                        style: TextStyle(
-                            fontSize: 12, color: AppColors.themedColor(context, AppColors.gray900, AppColors.gray50)),
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: "Oldest",
-                      child: Text(
-                        "Sort by Oldest",
-                        style: TextStyle(
-                            fontSize: 12, color: AppColors.themedColor(context, AppColors.gray900, AppColors.gray50)),
+                ],
+              ),
+            ),
+          ),
+          if (filteredNotifications.isEmpty)
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.notifications, size: 60, color: AppColors.gray500),
+                    const SizedBox(height: 12),
+                    Text(
+                      "No notifications",
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: AppColors.gray500,
                       ),
                     ),
                   ],
-                  icon: Icon(Icons.sort,
-                      color: AppColors.themedColor(context, AppColors.gray900, AppColors.gray50), size: 18),
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            itemCount: filteredNotifications.length,
-            itemBuilder: (context, index) {
-              var notif = filteredNotifications[index];
-              final isRead = notif["isRead"] == true;
+          if (filteredNotifications.isNotEmpty)
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                itemCount: filteredNotifications.length,
+                itemBuilder: (context, index) {
+                  final notif = filteredNotifications[index];
+                  final isRead = notif["isRead"] == true;
 
-              return Card(
-                color: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                margin: const EdgeInsets.symmetric(vertical: 5),
-                child: ListTile(
-                  onTap: () => _showNotificationDetail(index),
-                  leading: _getTypeIcon(notif["type"] ?? "info", isRead),
-                  title: Text(
-                    notif["title"] ?? "",
-                    style: TextStyle(
-                      fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
-                      color: AppColors.themedColor(context, AppColors.textLight, AppColors.textDark),
+                  return AnimatedBuilder(
+                    animation: _controller,
+                    builder: (context, child) {
+                      return Opacity(
+                        opacity: _controller.value >= (index * 0.05) ? 1 : 0,
+                        child: SlideTransition(
+                          position: _animations[index],
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 5),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withAlpha(30),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () async {
+                          setState(() {
+                            targetNotif = notif;
+                            selectedIndex = index;
+                          });
+                          showNotifModal.value = true;
+                          await _markAsRead(index);
+                        },
+                        child: Row(
+                          children: [
+                            _getTypeIcon(notif["type"] ?? "info", isRead),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    notif["title"] ?? "",
+                                    style: TextStyle(
+                                      fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
+                                      color: AppColors.themedColor(context, AppColors.textLight, AppColors.textDark),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    notif["message"] ?? "",
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: AppColors.themedColor(context, AppColors.gray700, AppColors.gray300),
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(
+                              isRead ? Icons.circle_outlined : Icons.circle,
+                              size: 12,
+                              color: isRead ? Colors.grey : Colors.blue,
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                  subtitle: Text(
-                    notif["message"] ?? "",
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: AppColors.themedColor(context, AppColors.gray700, AppColors.gray300),
-                    ),
-                  ),
-                  trailing: Icon(
-                    isRead ? Icons.circle_outlined : Icons.circle,
-                    size: 12,
-                    color: isRead ? Colors.grey : Colors.blue,
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+      ValueListenableBuilder<bool>(
+          valueListenable: showNotifModal,
+          builder: (context, value, child) {
+            return value
+                ? NotificationDetailModal(
+                    show: true,
+                    onClose: () {
+                      widget.hide();
+                      showNotifModal.value = false;
+                    },
+                    notification: targetNotif,
+                  )
+                : const SizedBox.shrink();
+          }),
+    ]);
   }
 }

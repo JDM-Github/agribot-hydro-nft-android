@@ -1,4 +1,5 @@
 import 'package:android/utils/struct.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../utils/colors.dart';
 
@@ -25,10 +26,15 @@ class AddPlantModal extends StatefulWidget {
 }
 
 class _AddPlantModalState extends State<AddPlantModal> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 250));
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 300),
+  );
   late final Animation<double> _opacity = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
-  late final Animation<double> _scale = CurvedAnimation(parent: _controller, curve: Curves.easeOutBack);
+  late final Animation<Offset> _slide = Tween<Offset>(
+    begin: const Offset(0, 1),
+    end: Offset.zero,
+  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
   @override
   void initState() {
@@ -79,8 +85,7 @@ class _AddPlantModalState extends State<AddPlantModal> with SingleTickerProvider
       return const SizedBox.shrink();
     }
 
-    final bgColor = AppColors.themedColor(context, AppColors.white, AppColors.gray900);
-    final borderColor = AppColors.themedColor(context, AppColors.gray300, AppColors.gray700);
+    final bgColor = AppColors.themedColor(context, AppColors.white, AppColors.gray800);
     final textColor = AppColors.themedColor(context, AppColors.textLight, AppColors.textDark);
 
     return FadeTransition(
@@ -89,113 +94,115 @@ class _AddPlantModalState extends State<AddPlantModal> with SingleTickerProvider
         children: [
           GestureDetector(
             onTap: widget.onClose,
-            child: Container(
-              color: Colors.black.withAlpha(200),
-              width: double.infinity,
-              height: double.infinity,
-            ),
+            child: Container(color: Colors.black.withAlpha(150), width: double.infinity, height: double.infinity),
           ),
-          Center(
-            child: ScaleTransition(
-              scale: _scale,
-              child: Container(
-                width: MediaQuery.of(context).size.width * 0.9,
-                constraints: const BoxConstraints(maxWidth: 500, maxHeight: 600),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: bgColor,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: borderColor),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Header
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Add Plant',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: textColor,
+          SlideTransition(
+            position: _slide,
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Material(
+                color: bgColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                elevation: 16,
+                child: Container(
+                  width: double.infinity,
+                  height: MediaQuery.of(context).size.height * 0.75,
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Add Plant',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor)),
+                          IconButton(
+                            icon: Icon(Icons.close, color: textColor),
+                            onPressed: widget.onClose,
+                            splashRadius: 20,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      Expanded(
+                        child: Scrollbar(
+                          thumbVisibility: true,
+                          child: ListView.builder(
+                            itemCount: widget.allPlants.length,
+                            itemBuilder: (context, index) {
+                              final plant = widget.allPlants[index];
+                              final alreadyDetected = widget.detectedPlants.any((p) => p.key == plant.name);
+
+                              return Card(
+                                margin: const EdgeInsets.symmetric(vertical: 6),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                color: AppColors.themedColor(context, AppColors.gray50, AppColors.gray700),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: SizedBox(
+                                          height: 50,
+                                          width: 50,
+                                          child: CachedNetworkImage(
+                                            imageUrl: plant.image,
+                                            fit: BoxFit.cover,
+                                            placeholder: (context, url) => Center(child: CircularProgressIndicator()),
+                                            errorWidget: (context, url, error) => Icon(Icons.error),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          plant.name,
+                                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: textColor),
+                                        ),
+                                      ),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: alreadyDetected ? Colors.red : AppColors.green500,
+                                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                        onPressed: () {
+                                          alreadyDetected ? removePlant(plant.name) : addPlant(plant.name);
+                                        },
+                                        child: Text(
+                                          alreadyDetected ? 'Remove' : 'Add',
+                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ),
-                        IconButton(
-                          icon: Icon(Icons.close, color: textColor),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Cancel button
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
                           onPressed: widget.onClose,
+                          style: TextButton.styleFrom(
+                            backgroundColor: AppColors.red500,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text('Cancel', style: TextStyle(fontSize: 14)),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Scrollable plant list
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: widget.allPlants.length,
-                        itemBuilder: (context, index) {
-                          final plant = widget.allPlants[index];
-                          final alreadyDetected = widget.detectedPlants.any((p) => p.key == plant.name);
-
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: borderColor),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(6),
-                                  child: Image.network(
-                                    plant.image,
-                                    height: 60,
-                                    width: 60,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    plant.name,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: textColor,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                                ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: alreadyDetected ? Colors.red : AppColors.green500,
-                                  ),
-                                  onPressed: () {
-                                    alreadyDetected ? removePlant(plant.name) : addPlant(plant.name);
-                                  },
-                                  child: Text(
-                                    alreadyDetected ? 'Remove' : 'Add',
-                                    style: const TextStyle(color: Colors.white),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
                       ),
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: widget.onClose,
-                        child: const Text('Close'),
-                      ),
-                    )
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

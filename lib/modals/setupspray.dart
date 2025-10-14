@@ -1,6 +1,7 @@
+import 'package:flutter/material.dart';
 import 'package:android/classes/snackbar.dart';
 import 'package:android/utils/struct.dart';
-import 'package:flutter/material.dart';
+import 'package:android/widgets/duration_input.dart';
 import '../utils/colors.dart';
 
 class SetupSprayModal extends StatefulWidget {
@@ -22,14 +23,15 @@ class SetupSprayModal extends StatefulWidget {
 class _SetupSprayModalState extends State<SetupSprayModal> with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 250),
+    duration: const Duration(milliseconds: 300),
   );
   late final Animation<double> _opacity = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
-  late final Animation<double> _scale = CurvedAnimation(parent: _controller, curve: Curves.easeOutBack);
+  late final Animation<Offset> _slide = Tween<Offset>(
+    begin: const Offset(0, 1),
+    end: Offset.zero,
+  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
   late Spray _tempSpray;
-  Map<String, dynamic>? selectedSpray;
-  Offset tooltipPosition = Offset.zero;
 
   @override
   void initState() {
@@ -51,178 +53,196 @@ class _SetupSprayModalState extends State<SetupSprayModal> with SingleTickerProv
     super.dispose();
   }
 
-  void applyRecommended(int index, String sprayName) => setState(() => _tempSpray.spray[index] = sprayName);
-
-  void showSprayInfo(TapDownDetails details, Map<String, dynamic> spray) => setState(() {
-        selectedSpray = spray;
-        tooltipPosition = details.globalPosition;
-      });
-
-  void hideSprayInfo() => setState(() => selectedSpray = null);
-
   @override
   Widget build(BuildContext context) {
     if (!widget.show && _controller.status == AnimationStatus.dismissed) {
       return const SizedBox.shrink();
     }
 
-    final theme = Theme.of(context).brightness;
-    final bgColor = AppColors.themedColor(context, AppColors.white, AppColors.gray900);
-    final borderColor = AppColors.themedColor(context, AppColors.gray300, AppColors.gray500);
+    final bgColor = AppColors.themedColor(context, AppColors.white, AppColors.gray800);
     final textColor = AppColors.themedColor(context, AppColors.textLight, AppColors.textDark);
-
-    Widget inputRow(int i) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: Row(
-            children: [
-              Switch(
-                value: _tempSpray.active[i],
-                onChanged: (v) => setState(() => _tempSpray.active[i] = v),
-              ),
-              Text('#${i + 1}', style: TextStyle(color: textColor)),
-              const SizedBox(width: 6),
-              Expanded(
-                child: TextField(
-                  onChanged: (v) => _tempSpray.spray[i] = v,
-                  decoration: InputDecoration(
-                    hintText: 'Spray name',
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(6),
-                      borderSide: BorderSide(color: borderColor),
-                    ),
-                    filled: true,
-                    fillColor: theme == Brightness.light ? AppColors.gray100 : AppColors.gray800,
-                  ),
-                  controller: TextEditingController(
-                    text: _tempSpray.spray[i],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              SizedBox(
-                width: 40,
-                child: TextField(
-                  keyboardType: TextInputType.number,
-                  onChanged: (v) => _tempSpray.duration[i] = int.tryParse(v) ?? 2,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(6),
-                      borderSide: BorderSide(color: borderColor),
-                    ),
-                  ),
-                  controller: TextEditingController(
-                    text: '${_tempSpray.duration[i]}',
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Text('sec', style: TextStyle(color: textColor)),
-              IconButton(
-                icon: const Icon(Icons.clear, size: 18, color: Colors.red),
-                onPressed: () => setState(() {
-                  _tempSpray.spray[i] = '';
-                  // _tempSpray.duration[i] = 2;
-                  // _tempSpray.active[i] = false;
-                }),
-              )
-            ],
-          ),
-        );
+    final borderColor = AppColors.themedColor(context, AppColors.gray200, AppColors.gray700);
 
     return FadeTransition(
       opacity: _opacity,
       child: Stack(
         children: [
+          // Background overlay
           GestureDetector(
             onTap: widget.onClose,
             child: Container(
-              color: Colors.black.withAlpha(200),
+              color: Colors.black.withAlpha(150),
               width: double.infinity,
               height: double.infinity,
             ),
           ),
-          Center(
-            child: ScaleTransition(
-              scale: _scale,
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: bgColor,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: borderColor),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 6,
-                      offset: const Offset(0, 3),
-                    )
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Setup Spray',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: textColor,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Column(
-                      children: List.generate(
-                        _tempSpray.spray.length,
-                        (i) => inputRow(i),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: widget.onClose,
-                          style: TextButton.styleFrom(
-                            backgroundColor: AppColors.red500,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
+
+          // Sliding modal
+          SlideTransition(
+            position: _slide,
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Material(
+                color: bgColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                elevation: 16,
+                child: Container(
+                  width: double.infinity,
+                  height: MediaQuery.of(context).size.height * 0.75,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  child: Column(
+                    children: [
+                      // Header
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Setup Spray',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: textColor,
                             ),
                           ),
-                          child: const Text('Cancel'),
+                          IconButton(
+                            icon: Icon(Icons.close, color: textColor),
+                            onPressed: widget.onClose,
+                            splashRadius: 20,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Spray list
+                      Expanded(
+                        child: Scrollbar(
+                          thumbVisibility: true,
+                          child: ListView.separated(
+                            itemCount: _tempSpray.spray.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 8),
+                            itemBuilder: (context, i) {
+                              final active = _tempSpray.active[i];
+                              final sprayName = _tempSpray.spray[i];
+                              final duration = _tempSpray.duration[i];
+
+                              return Card(
+                                elevation: 2,
+                                color: AppColors.themedColor(context, AppColors.gray50, AppColors.gray700),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Spray name row
+                                      Row(
+                                        children: [
+                                          Switch(
+                                            value: active,
+                                            onChanged: (v) => setState(() => _tempSpray.active[i] = v),
+                                            activeColor: AppColors.green500,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: TextField(
+                                              controller: TextEditingController(text: sprayName),
+                                              onChanged: (v) => _tempSpray.spray[i] = v,
+                                              style: const TextStyle(fontSize: 14),
+                                              maxLength: 20,
+                                              decoration: InputDecoration(
+                                                hintText: 'Spray name',
+                                                counterText: '',
+                                                isDense: true,
+                                                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                                border: OutlineInputBorder(
+                                                  borderRadius: BorderRadius.circular(10),
+                                                  borderSide: BorderSide(color: borderColor),
+                                                ),
+                                                focusedBorder: OutlineInputBorder(
+                                                  borderRadius: BorderRadius.circular(10),
+                                                  borderSide: const BorderSide(color: AppColors.green500),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          IconButton(
+                                            icon: Icon(Icons.clear, size: 20, color: AppColors.red500),
+                                            onPressed: () => setState(() => _tempSpray.spray[i] = ''),
+                                          ),
+                                        ],
+                                      ),
+
+                                      const SizedBox(height: 10),
+
+                                      // Duration row
+                                      Row(
+                                        children: [
+                                          const Text(
+                                            'Duration:',
+                                            style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          DurationInput(
+                                            initialValue: duration,
+                                            onChanged: (value) => _tempSpray.duration[i] = value,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          const Text(
+                                            'sec',
+                                            style: TextStyle(fontSize: 14),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                         ),
-                        const SizedBox(width: 6),
-                        TextButton(
-                          onPressed: () {
-                            try {
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Action buttons
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: widget.onClose,
+                            style: TextButton.styleFrom(
+                              backgroundColor: AppColors.red500,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text(
+                              'Cancel',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          TextButton(
+                            onPressed: () {
                               widget.sprays.spray = List.from(_tempSpray.spray);
                               widget.sprays.active = List.from(_tempSpray.active);
                               widget.sprays.duration = List.from(_tempSpray.duration);
-
-                              AppSnackBar.success(context, "Spray settings saved successfully!");
-                            } catch (e) {
-                              AppSnackBar.error(context, "Failed to save spray settings: $e");
-                            }
-                          },
-                          style: TextButton.styleFrom(
-                            backgroundColor: AppColors.green500,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
+                              AppSnackBar.success(context, "Spray settings saved!");
+                            },
+                            style: TextButton.styleFrom(
+                              backgroundColor: AppColors.green500,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text(
+                              'Save',
+                              style: TextStyle(fontSize: 14),
                             ),
                           ),
-                          child: const Text('Save'),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      )
+                    ],
+                  ),
                 ),
               ),
             ),

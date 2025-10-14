@@ -48,6 +48,12 @@ dependencies:
   shared_preferences: ^2.5.3
   fl_chart: ^0.71.0
   intl: ^0.20.2
+  uuid: ^4.5.1
+  socket_io_client: ^3.1.2
+  flutter_speed_dial: ^7.0.0
+  circular_menu: ^4.0.0
+  animated_radial_menu: ^0.0.1
+  flutter_launcher_icons: ^0.14.4
 model_viewer_plus: ^1.8.0
 
 dev_dependencies:
@@ -61,6 +67,28 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
 
+flutter_launcher_icons:
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  image_path: "assets/icons/LOGO.ico"
+  min_sdk_android: 21
+
+  web:
+    generate: true
+    image_path: "assets/icons/LOGO.ico"
+    background_color: "#FFFFFF"
+    theme_color: "#000000"
+
+  windows:
+    generate: true
+    image_path: "assets/icons/LOGO.ico"
+    icon_size: 48
+
+  macos:
+    generate: true
+    image_path: "assets/icons/LOGO.ico"
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
@@ -68,7 +96,6 @@ dev_dependencies:
 flutter:
   assets:
     - assets/icons/LOGO.ico
-    - assets/models/AGRIBOT.glb
     - assets/LOGO TEXT.webp
 
   # The following line ensures that the Material Icons font is

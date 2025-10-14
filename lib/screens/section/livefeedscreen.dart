@@ -1,8 +1,12 @@
+import 'dart:typed_data';
+
+import 'package:android/connection/connect.dart';
 import 'package:android/utils/colors.dart';
 import 'package:flutter/material.dart';
 
 class LiveFeedScreen extends StatelessWidget {
-  const LiveFeedScreen({super.key});
+  final Map<String, dynamic> state;
+  const LiveFeedScreen({required this.state, super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -16,16 +20,31 @@ class LiveFeedScreen extends StatelessWidget {
               width: double.infinity,
               color: AppColors.themedColor(context, AppColors.gray200, AppColors.gray950),
               alignment: Alignment.center,
-              child: Text(
-                "Camera Preview",
-                style: TextStyle(
-                  color: AppColors.themedColor(context, AppColors.gray900, AppColors.gray50),
-                  fontSize: 18,
-                ),
+              child: ValueListenableBuilder<Uint8List?>(
+                valueListenable: Connection.liveFrame,
+                builder: (context, frame, _) {
+                  if (frame == null || frame.isEmpty) {
+                    return Text(
+                      "CAMERA FEED",
+                      style: TextStyle(
+                        color: AppColors.themedColor(context, AppColors.gray900, AppColors.gray50),
+                        fontSize: 18,
+                      ),
+                    );
+                  }
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.memory(
+                      frame,
+                      fit: BoxFit.contain,
+                      width: double.infinity,
+                      gaplessPlayback: true,
+                    ),
+                  );
+                },
               ),
             ),
           ),
-
           Expanded(
             flex: 2,
             child: Padding(
@@ -47,7 +66,6 @@ class LiveFeedScreen extends StatelessWidget {
                       ),
                     ),
                     Divider(color: AppColors.themedColor(context, AppColors.gray300, AppColors.gray700)),
-
                     Expanded(
                       child: ListView(
                         scrollDirection: Axis.horizontal,
@@ -64,7 +82,6 @@ class LiveFeedScreen extends StatelessWidget {
               ),
             ),
           ),
-
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
             child: Row(

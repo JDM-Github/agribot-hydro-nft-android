@@ -7,7 +7,9 @@ class RequestHandler {
   RequestHandler({this.development = true});
 
   String get baseUrl {
-    return development ? 'http://localhost:8888' : 'https://agribot-hydro-nft-admin.netlify.app';
+    String dev = 'https://c204d49e--agribot-hydro-nft-admin.netlify.live';
+    // return development ? 'http://localhost:8888' : 'https://agribot-hydro-nft-admin.netlify.app';
+    return dev;
   }
 
   Future<Map<String, dynamic>> handleRequest(

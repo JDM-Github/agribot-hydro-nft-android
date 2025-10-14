@@ -1,16 +1,16 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:android/classes/snackbar.dart';
-import 'package:android/handle_request.dart';
+import 'package:android/classes/default.dart';
+import 'package:android/requests/update.dart';
 import 'package:android/screens/spray.dart';
 import 'package:android/store/data.dart';
 import 'package:android/utils/struct.dart';
 import 'package:flutter/material.dart';
 
 class LoadingScreen extends StatefulWidget {
-  final UserDataStore store;
-  const LoadingScreen({super.key, required this.store});
+  final Function() toggleTheme;
+  const LoadingScreen({super.key, required this.toggleTheme});
 
   @override
   State<LoadingScreen> createState() => _LoadingScreenState();
@@ -20,6 +20,8 @@ class _LoadingScreenState extends State<LoadingScreen> {
   String status = "Loading...";
   String currentTip = "";
   Timer? tipTimer;
+
+  UserDataStore data = UserDataStore();
 
   final List<String> tips = [
     "Remember to water your plants regularly!",
@@ -73,31 +75,34 @@ class _LoadingScreenState extends State<LoadingScreen> {
 
   Future<void> _loadData() async {
     if (!mounted) return;
-    final store = widget.store;
     if (await _checkInternet()) {
-      await store.loadData();
-      if (mounted) AppSnackBar.loading(context, "Checking folders...", id: "folderFetch");
-      setState(() => status = "Checking folders...");
-      await _checkLastFolderFetch(store);
-      if (mounted) AppSnackBar.hide(context, id: "folderFetch");
 
-      if (mounted) AppSnackBar.loading(context, "Updating models...", id: "modelUpdate");
-      setState(() => status = "Updating models...");
-      await _checkForUpdates(store);
-      if (mounted) AppSnackBar.hide(context, id: "modelUpdate");
+      final result = await CustomUpdater.forceUpdate(
+        state: this,
+        deviceID: data.uuid.value
+      );
+      DefaultConfig newConfig = result['data'];
+      final Map<String, Plant> transformedPlants = {for (var plant in newConfig.plants) plant.name: plant};
+
+      final now = DateTime.now();
+      final currentDaySlug = '${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}${now.year}';
+
+      data.userData.value = newConfig;
+      data.user.value = newConfig.user;
+      data.models.value = newConfig.models;
+      data.notifications.value = newConfig.notifications;
+      data.allPlants.value = newConfig.plants;
+      data.transformedPlants.value = transformedPlants;
+      data.folderLastFetch.value = currentDaySlug;
+      data.folders.value = newConfig.folders;
+      data.tailscales.value = newConfig.tailscaleDevices;
+      await data.saveData(); 
     }
     if (mounted) {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => ScannedPlantsScreen(
-            toggleTheme: () {},
-            user: widget.store.user.value,
-            models: widget.store.models.value,
-            folders: widget.store.folders.value,
-            notifications: widget.store.notifications.value,
-            allPlants: widget.store.allPlants.value,
-            transformedPlants: widget.store.transformedPlants.value,
-            updateUser: (newUser) => setState(() => widget.store.user.value = newUser),
+            toggleTheme: widget.toggleTheme,
           ),
         ),
       );
@@ -110,69 +115,6 @@ class _LoadingScreenState extends State<LoadingScreen> {
       return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
     } catch (_) {
       return false;
-    }
-  }
-
-  Future<void> _checkLastFolderFetch(UserDataStore store) async {
-    if (!store.isLoggedIn()) return;
-    final now = DateTime.now();
-    final currentDaySlug = '${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}${now.year}';
-    if (currentDaySlug != store.folderLastFetch.value) {
-      final handler = RequestHandler();
-
-      try {
-        final foldersResponse =
-            await handler.handleRequest('folders', method: "POST", body: {'email': store.user.value['email']});
-        if (foldersResponse['success'] == true) {
-          final List<dynamic> foldersJson = foldersResponse['folders'];
-          final List<FolderRecord> foldersList = foldersJson.map((f) => FolderRecord.fromJson(f)).toList();
-          store.folders.value = foldersList;
-          store.folderLastFetch.value = currentDaySlug;
-          await store.saveData();
-        }
-      } catch (e) {
-        debugPrint("Error fetching latest folders.");
-      }
-    }
-  }
-
-  Future<void> _checkForUpdates(UserDataStore store) async {
-    final handler = RequestHandler();
-    try {
-      final response = await handler.handleRequest(
-        'user/check-update',
-        body: {'id': store.user.value['id']},
-      );
-
-      if (response['success'] == true) {
-        Map<String, dynamic> data = response['data'];
-        if (data.containsKey('user')) {
-          store.user.value = data['user'];
-          await store.saveConfig(data['user']['config']);
-        }
-        if (data.containsKey('yoloObjectDetection')) {
-          store.models.value['yoloObjectDetection'] = data['yoloObjectDetection'];
-        }
-        if (data.containsKey('yoloStageClassification')) {
-          store.models.value['yoloStageClassification'] = data['yoloStageClassification'];
-        }
-        if (data.containsKey('maskRCNNSegmentation')) {
-          store.models.value['maskRCNNSegmentation'] = data['maskRCNNSegmentation'];
-        }
-        if (data.containsKey('notification')) {
-          store.notifications.value = data['notification'];
-        }
-        if (data.containsKey('plants')) {
-          final plantsJson = data['plants'];
-          final List<Plant> allPlants = plantsJson.map<Plant>((p) => Plant.fromJson(p)).toList();
-          final Map<String, Plant> transformedPlants = {for (var plant in allPlants) plant.name: plant};
-          store.allPlants.value = allPlants;
-          store.transformedPlants.value = transformedPlants;
-        }
-        await store.saveData();
-      }
-    } catch (e) {
-      debugPrint("API check failed: $e");
     }
   }
 

@@ -1,3 +1,5 @@
+import 'package:android/api/auth.dart';
+import 'package:android/classes/default.dart';
 import 'package:android/classes/snackbar.dart';
 import 'package:android/handle_request.dart';
 import 'package:android/modals/verification.dart';
@@ -7,12 +9,11 @@ import 'package:android/utils/colors.dart';
 import 'package:android/utils/struct.dart';
 import 'package:android/widgets/particle.dart';
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 
 class AuthScreen extends StatefulWidget {
   final VoidCallback toggleTheme;
-  final dynamic user;
-  final Function(dynamic newUser) updateUser;
-  const AuthScreen({super.key, required this.toggleTheme, required this.user, required this.updateUser});
+  const AuthScreen({super.key, required this.toggleTheme});
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -165,90 +166,37 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   }
 
   Future<void> loginSubmit() async {
-    AppSnackBar.loading(context, "Trying to login...", id: "login");
-    final handler = RequestHandler();
+    UserDataStore data = UserDataStore();
+    final auth = AuthService();
+    final uuid = data.uuid.value != "" ? data.uuid.value : Uuid().v4();
+    final res = await auth.login(this, {'email': emailController.text, 'password': passwordController.text, 'deviceID': uuid});
+    if (res['success'] == true) {
+      DefaultConfig newConfig = res['data'];
+      final Map<String, Plant> transformedPlants = {for (var plant in newConfig.plants) plant.name: plant};
 
-    try {
-      final response = await handler.handleRequest(
-        'user/login',
-        body: {
-          'type': 'login',
-          'email': emailController.text,
-          'password': passwordController.text,
-        },
-      );
+      final now = DateTime.now();
+      final currentDaySlug = '${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}${now.year}';
 
-      if (response['success'] == true) {
-        final modelsResponse = await handler.handleRequest('get-model-studio', method: "GET");
-        final plantsResponse = await handler.handleRequest('plant/get-plant-display', method: "GET");
-        final notifications = await handler.handleRequest("notification/user/${response['user']['id']}", method: "GET");
-        final foldersResponse = await handler.handleRequest('folders', method: "POST", body: {'email': response['user']['email']});
-
-        final now = DateTime.now();
-        final currentDaySlug =
-            '${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}${now.year}';
-
-        final models = modelsResponse['success'] == true
-            ? {
-                'yoloObjectDetection': modelsResponse['data']['yoloObjectDetection'],
-                'yoloStageClassification': modelsResponse['data']['yoloStageClassification'],
-                'maskRCNNSegmentation': modelsResponse['data']['maskRCNNSegmentation'],
-              }
-            : {
-                'yoloObjectDetection': [],
-                'yoloStageClassification': [],
-                'maskRCNNSegmentation': [],
-              };
-
-        final plantsJson = plantsResponse['success'] == true ? plantsResponse['plantData'] : [];
-        final List<Plant> allPlants = plantsJson.map<Plant>((p) => Plant.fromJson(p)).toList();
-        final Map<String, Plant> transformedPlants = {for (var plant in allPlants) plant.name: plant};
-
-        final store = UserDataStore();
-        store.user.value = response['user'];
-        store.models.value = models;
-        store.notifications.value = notifications['success'] == true ? notifications['notifications'] : [];
-        store.allPlants.value = allPlants;
-        store.transformedPlants.value = transformedPlants;
-        store.folderLastFetch.value = currentDaySlug;
-        if (foldersResponse['success'] == true) {
-          final List<dynamic> foldersJson = foldersResponse['folders'];
-          final List<FolderRecord> foldersList = foldersJson.map((f) => FolderRecord.fromJson(f)).toList();
-          store.folders.value = foldersList;
-        } else {
-          store.folders.value = [];
-        }
-        await store.saveData();
-
-        if (mounted) {
-          AppSnackBar.hide(context, id: "login");
-          AppSnackBar.success(context, "Login successful!");
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ScannedPlantsScreen(
-                toggleTheme: widget.toggleTheme,
-                user: store.user.value,
-                models: store.models.value,
-                folders: store.folders.value,
-                notifications: store.notifications.value,
-                allPlants: store.allPlants.value,
-                transformedPlants: store.transformedPlants.value,
-                updateUser: widget.updateUser,
-              ),
-            ),
-          );
-        }
-      } else {
-        if (mounted) {
-          AppSnackBar.hide(context, id: "login");
-          AppSnackBar.error(context, response['message'] ?? "Invalid email or password.");
-        }
-      }
-    } catch (e) {
+      data.userData.value = newConfig;
+      data.user.value = newConfig.user;
+      data.models.value = newConfig.models;
+      data.notifications.value = newConfig.notifications;
+      data.allPlants.value = newConfig.plants;
+      data.transformedPlants.value = transformedPlants;
+      data.folderLastFetch.value = currentDaySlug;
+      data.folders.value = newConfig.folders;
+      data.tailscales.value = newConfig.tailscaleDevices;
+      data.uuid.value = uuid;
+      await data.saveData();
       if (mounted) {
-        AppSnackBar.hide(context, id: "login");
-        AppSnackBar.error(context, "An unexpected error occurred: $e");
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ScannedPlantsScreen(
+              toggleTheme: widget.toggleTheme,
+            ),
+          ),
+        );
       }
     }
   }
@@ -259,6 +207,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     final cardColor = AppColors.themedColor(context, AppColors.white, AppColors.gray800);
     final textColor = AppColors.themedColor(context, AppColors.textLight, AppColors.textDark);
 
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Scaffold(
       backgroundColor: bgColor,
       body: Stack(children: [
@@ -267,8 +217,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           child: Center(
             child: SingleChildScrollView(
               child: Container(
-                padding: const EdgeInsets.all(20),
-                constraints: const BoxConstraints(maxWidth: 400),
+                padding: const EdgeInsets.all(28),
+                constraints: BoxConstraints(maxWidth: screenWidth * 0.85),
                 decoration: BoxDecoration(
                   color: cardColor,
                   borderRadius: BorderRadius.circular(12),
@@ -284,7 +234,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                       child: Text(
                         isRegister ? "Create Your Account" : "Login to Your Account",
                         key: ValueKey(isRegister),
-                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.green500),
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.green500),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -300,22 +250,22 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                                   controller: fullNameController,
                                   decoration: InputDecoration(
                                     labelText: "Full Name",
-                                    labelStyle: TextStyle(color: textColor),
+                                    labelStyle: TextStyle(color: textColor, fontSize: 12),
                                   ),
-                                  style: TextStyle(color: textColor),
+                                  style: TextStyle(color: textColor, fontSize: 12),
                                   validator: (v) => v!.isEmpty ? "Enter your full name" : null,
                                 ),
-                                const SizedBox(height: 10),
+                                const SizedBox(height: 5),
                                 TextFormField(
                                   controller: prototypeIPController,
                                   decoration: InputDecoration(
                                     labelText: "Prototype IP",
-                                    labelStyle: TextStyle(color: textColor),
+                                    labelStyle: TextStyle(color: textColor, fontSize: 12),
                                   ),
-                                  style: TextStyle(color: textColor),
+                                  style: TextStyle(color: textColor, fontSize: 12),
                                   validator: (v) => v!.isEmpty ? "Enter prototype IP" : null,
                                 ),
-                                const SizedBox(height: 10),
+                                const SizedBox(height: 5),
                               ],
                             ),
                             crossFadeState: isRegister ? CrossFadeState.showSecond : CrossFadeState.showFirst,
@@ -325,27 +275,31 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                             controller: emailController,
                             decoration: InputDecoration(
                               labelText: "Email",
-                              labelStyle: TextStyle(color: textColor),
+                              labelStyle: TextStyle(color: textColor, fontSize: 12),
                             ),
-                            style: TextStyle(color: textColor),
+                            style: TextStyle(color: textColor, fontSize: 12),
                             validator: (v) => v!.isEmpty ? "Enter your email" : null,
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 5),
                           TextFormField(
                             controller: passwordController,
                             obscureText: !showPassword,
                             decoration: InputDecoration(
                               labelText: "Password",
-                              labelStyle: TextStyle(color: textColor),
+                              labelStyle: TextStyle(color: textColor, fontSize: 12),
                               suffixIcon: IconButton(
-                                icon: Icon(showPassword ? Icons.visibility_off : Icons.visibility, color: textColor),
+                                icon: Icon(
+                                  showPassword ? Icons.visibility_off : Icons.visibility,
+                                  color: textColor,
+                                  size: 18,
+                                ),
                                 onPressed: () => setState(() => showPassword = !showPassword),
                               ),
                             ),
-                            style: TextStyle(color: textColor),
+                            style: TextStyle(color: textColor, fontSize: 12),
                             validator: (v) => v!.isEmpty ? "Enter your password" : null,
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 5),
                           AnimatedCrossFade(
                             firstChild: const SizedBox.shrink(),
                             secondChild: Column(
@@ -355,19 +309,20 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                                   obscureText: !showConfirmPassword,
                                   decoration: InputDecoration(
                                     labelText: "Confirm Password",
-                                    labelStyle: TextStyle(color: textColor),
+                                    labelStyle: TextStyle(color: textColor, fontSize: 12),
                                     suffixIcon: IconButton(
                                       icon: Icon(
                                         showConfirmPassword ? Icons.visibility_off : Icons.visibility,
                                         color: textColor,
+                                        size: 18,
                                       ),
                                       onPressed: () => setState(() => showConfirmPassword = !showConfirmPassword),
                                     ),
                                   ),
-                                  style: TextStyle(color: textColor),
+                                  style: TextStyle(color: textColor, fontSize: 12),
                                   validator: (v) => v!.isEmpty ? "Confirm your password" : null,
                                 ),
-                                const SizedBox(height: 10),
+                                const SizedBox(height: 5),
                                 Row(
                                   children: [
                                     Checkbox(
@@ -376,7 +331,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                                       onTap: showTermsModal,
                                       child: const Text(
                                         "I agree to the Terms & Conditions",
-                                        style: TextStyle(color: AppColors.green500),
+                                        style: TextStyle(color: AppColors.green500, fontSize: 10),
                                       ),
                                     ),
                                   ],
@@ -386,34 +341,39 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                             crossFadeState: isRegister ? CrossFadeState.showSecond : CrossFadeState.showFirst,
                             duration: const Duration(milliseconds: 300),
                           ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 10),
                           ElevatedButton(
                             onPressed: isRegister ? sendVerificationCode : loginSubmit,
                             style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.green500, minimumSize: const Size.fromHeight(45)),
+                                backgroundColor: AppColors.green500,
+                                minimumSize: const Size.fromHeight(36),
+                                maximumSize: const Size.fromHeight(36)),
                             child: Text(
                               isRegister ? "Register" : "Log In",
                               style: const TextStyle(color: AppColors.white),
                             ),
                           ),
-                          const SizedBox(height: 10),
+                          if (verificationCode.isNotEmpty) const SizedBox(height: 5),
                           if (verificationCode.isNotEmpty)
-                          ElevatedButton(
+                            ElevatedButton(
                               onPressed: () => showVerifyModal.value = true,
                               style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.blue500, minimumSize: const Size.fromHeight(45)),
-                              child: Text("Verify Account",
+                                  backgroundColor: AppColors.blue500,
+                                  minimumSize: const Size.fromHeight(36),
+                                  maximumSize: const Size.fromHeight(36)),
+                              child: Text(
+                                "Verify Account",
                                 style: const TextStyle(color: AppColors.white),
                               ),
                             ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 5),
                           TextButton(
                             onPressed: toggleForm,
                             child: Text(
                               isRegister
                                   ? "Already have an account? Log in here"
                                   : "Don't have an account? Register here",
-                              style: const TextStyle(color: AppColors.green500),
+                              style: const TextStyle(color: AppColors.green500, fontSize: 10),
                             ),
                           ),
                         ],

@@ -1,9 +1,10 @@
+import 'package:android/classes/default.dart';
 import 'package:android/utils/colors.dart';
 import 'package:flutter/material.dart';
 import 'package:android/widgets/radar_chart.dart';
 
 class CompareModelsModal extends StatefulWidget {
-  final Map<String, dynamic> models;
+  final Models models;
   final bool show;
   final VoidCallback onClose;
 
@@ -19,28 +20,22 @@ class CompareModelsModal extends StatefulWidget {
 }
 
 class _CompareModelsModalState extends State<CompareModelsModal> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _opacity;
-  late Animation<double> _scale;
+  late final AnimationController _controller =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 250));
+  late final Animation<double> _opacity = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+  late final Animation<Offset> _slide = Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+      .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
-    _opacity = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
-    _scale = CurvedAnimation(parent: _controller, curve: Curves.easeOutBack);
-
     if (widget.show) _controller.forward();
   }
 
   @override
   void didUpdateWidget(covariant CompareModelsModal oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.show && !_controller.isAnimating) {
-      _controller.forward();
-    } else if (!widget.show && !_controller.isAnimating) {
-      _controller.reverse();
-    }
+    widget.show ? _controller.forward(from: 0) : _controller.reverse();
   }
 
   @override
@@ -55,6 +50,9 @@ class _CompareModelsModalState extends State<CompareModelsModal> with SingleTick
       return const SizedBox.shrink();
     }
 
+    final bgColor = AppColors.themedColor(context, AppColors.white, AppColors.gray800);
+    final textColor = AppColors.themedColor(context, AppColors.textLight, AppColors.textDark);
+
     return FadeTransition(
       opacity: _opacity,
       child: Stack(
@@ -62,83 +60,78 @@ class _CompareModelsModalState extends State<CompareModelsModal> with SingleTick
           GestureDetector(
             onTap: widget.onClose,
             child: Container(
-              color: Colors.black.withAlpha(200),
+              color: Colors.black.withAlpha(150),
               width: double.infinity,
               height: double.infinity,
             ),
           ),
-          Center(
-            child: ScaleTransition(
-              scale: _scale,
-              child: Container(
-                width: MediaQuery.of(context).size.width * 0.9,
-                constraints: const BoxConstraints(maxWidth: 500),
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.themedColor(
-                    context,
-                    AppColors.backgroundLight,
-                    AppColors.gray800,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: SingleChildScrollView(
+          SlideTransition(
+            position: _slide,
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Material(
+                color: bgColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                elevation: 16,
+                child: Container(
+                  width: double.infinity,
+                  height: MediaQuery.of(context).size.height * 0.75,
+                  padding: const EdgeInsets.all(16),
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                "Compare Model Versions",
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                            ),
-                          ),
+                          Text("Compare Model Versions",
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor)),
+                          IconButton(icon: Icon(Icons.close, color: textColor), onPressed: widget.onClose),
                         ],
                       ),
-                      const SizedBox(height: 5),
-                      if (widget.models["yoloObjectDetection"] != null &&
-                          (widget.models["yoloObjectDetection"] as List).isNotEmpty)
-                        VersionRadarChart(
-                          title: "YOLOv8 Object Detection",
-                          models: List<Map<String, dynamic>>.from(widget.models["yoloObjectDetection"]),
-                          lightColor: AppColors.blue500,
-                          darkColor: AppColors.blue700,
-                        ),
-                      if (widget.models["yoloStageClassification"] != null &&
-                          (widget.models["yoloStageClassification"] as List).isNotEmpty)
-                        VersionRadarChart(
-                          title: "YOLOv8 Stage Classification",
-                          models: List<Map<String, dynamic>>.from(widget.models["yoloStageClassification"]),
-                          lightColor: AppColors.purple500,
-                          darkColor: AppColors.purple700,
-                        ),
-                      if (widget.models["maskRCNNSegmentation"] != null &&
-                          (widget.models["maskRCNNSegmentation"] as List).isNotEmpty)
-                        VersionRadarChart(
-                          title: "Mask R-CNN Segmentation",
-                          models: List<Map<String, dynamic>>.from(widget.models["maskRCNNSegmentation"]),
-                          lightColor: AppColors.red500,
-                          darkColor: AppColors.red700,
-                        ),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.themedColor(
-                            context,
-                            AppColors.red500,
-                            AppColors.red500,
+                      const SizedBox(height: 12),
+
+                      Expanded(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            children: [
+                              if (widget.models.yoloobjectdetection.isNotEmpty)
+                                VersionRadarChart(
+                                  title: "YOLOv8 Object Detection",
+                                  models: List<Map<String, dynamic>>.from(widget.models.yoloobjectdetection),
+                                  lightColor: AppColors.blue500,
+                                  darkColor: AppColors.blue700,
+                                ),
+                              if (widget.models.yolostageclassification.isNotEmpty)
+                                VersionRadarChart(
+                                  title: "YOLOv8 Stage Classification",
+                                  models: List<Map<String, dynamic>>.from(widget.models.yolostageclassification),
+                                  lightColor: AppColors.purple500,
+                                  darkColor: AppColors.purple700,
+                                ),
+                              if (widget.models.maskrcnnsegmentation.isNotEmpty)
+                                VersionRadarChart(
+                                  title: "Mask R-CNN Segmentation",
+                                  models: List<Map<String, dynamic>>.from(widget.models.maskrcnnsegmentation),
+                                  lightColor: AppColors.red500,
+                                  darkColor: AppColors.red700,
+                                ),
+                            ],
                           ),
-                          foregroundColor: AppColors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         ),
-                        label: const Text("Close", style: TextStyle(color: AppColors.white)),
-                        onPressed: widget.onClose,
+                      ),
+
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.bottomRight,
+                        child: TextButton(
+                          onPressed: widget.onClose,
+                          style: TextButton.styleFrom(
+                            backgroundColor: AppColors.red500,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text("Close"),
+                        ),
                       ),
                     ],
                   ),

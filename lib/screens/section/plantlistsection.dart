@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:android/classes/config.dart';
 import 'package:android/classes/snackbar.dart';
 import 'package:android/handle_request.dart';
@@ -9,10 +8,12 @@ import 'package:android/modals/compare.dart';
 import 'package:android/modals/confidence.dart';
 import 'package:android/modals/setschedule.dart';
 import 'package:android/modals/setupspray.dart';
+import 'package:android/modals/show_confirmation_modal.dart';
 import 'package:android/screens/plantdetail.dart';
 import 'package:android/store/data.dart';
 import 'package:android/utils/colors.dart';
 import 'package:android/utils/struct.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import 'dart:io';
@@ -20,349 +21,18 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
-class ActionAccordion extends StatefulWidget {
-  final ValueNotifier<bool> showSprayModal;
-  final ValueNotifier<bool> showScheduleModal;
-  final ValueNotifier<bool> showAddPlantModal;
-  final ValueNotifier<bool> compareModal;
-  final Config config;
-  final Function() onExportConfig;
-  final Function() onUploadConfig;
-  final Function() saveConfig;
-  final Function(String target) onOpenConfidence;
-  final Function(String target) onOpenVersion;
-
-  const ActionAccordion(
-      {super.key,
-      required this.showSprayModal,
-      required this.showScheduleModal,
-      required this.showAddPlantModal,
-      required this.compareModal,
-      required this.config,
-      required this.onExportConfig,
-      required this.onUploadConfig,
-      required this.onOpenConfidence,
-      required this.onOpenVersion,
-      required this.saveConfig});
-
-  @override
-  State<ActionAccordion> createState() => _ActionAccordionState();
-}
-
-class _ActionAccordionState extends State<ActionAccordion> with SingleTickerProviderStateMixin {
-  String? openSection;
-  final Map<String, GlobalKey> _buttonKeys = {};
-  OverlayEntry? _overlayEntry;
-
-  late final AnimationController _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
-  late final Animation<double> _opacity = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
-  late final Animation<double> _scale = CurvedAnimation(parent: _controller, curve: Curves.easeOutBack);
-
-  @override
-  void dispose() {
-    _removeOverlay();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _removeOverlay({bool animated = true}) {
-    if (_overlayEntry != null) {
-      if (animated) {
-        _controller.reverse().then((_) {
-          _overlayEntry?.remove();
-          _overlayEntry = null;
-          openSection = null;
-        });
-      } else {
-        _overlayEntry?.remove();
-        _overlayEntry = null;
-        openSection = null;
-      }
-    } else {
-      openSection = null;
-    }
-  }
-
-  void _showOverlay(Widget content, GlobalKey key) {
-    _removeOverlay(animated: false);
-
-    if (key.currentContext == null) return;
-    final box = key.currentContext!.findRenderObject() as RenderBox;
-    final offset = box.localToGlobal(Offset.zero);
-
-    _overlayEntry = OverlayEntry(
-      builder: (context) {
-        final screenWidth = MediaQuery.of(context).size.width;
-
-        return Material(
-          color: Colors.black26,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: GestureDetector(
-                  onTap: () => _removeOverlay(),
-                  behavior: HitTestBehavior.translucent,
-                  child: const SizedBox.expand(),
-                ),
-              ),
-              Positioned(
-                top: offset.dy - 10 - 80,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: AnimatedBuilder(
-                    animation: _controller,
-                    builder: (context, child) => Opacity(
-                      opacity: _opacity.value,
-                      child: Transform.scale(
-                        scale: _scale.value,
-                        child: child,
-                      ),
-                    ),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxWidth: screenWidth * 0.9,
-                        maxHeight: 180,
-                      ),
-                      child: Material(
-                        elevation: 6,
-                        borderRadius: BorderRadius.circular(12),
-                        color: AppColors.themedColor(context, AppColors.gray100, AppColors.gray900),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: AbsorbPointer(
-                            absorbing: false,
-                            child: content,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    Overlay.of(context).insert(_overlayEntry!);
-    _controller.forward(from: 0);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final sections = [
-      {
-        'title': 'Model Actions',
-        'content': Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: [
-            _mediumButton(context, 'Compare Models', backgroundColor: AppColors.blue500, onPressed: () {
-              _removeOverlay(animated: false);
-              widget.compareModal.value = true;
-            }),
-            _mediumButton(context, 'ObjectDetectionModel', backgroundColor: AppColors.orange500, onPressed: () {
-              _removeOverlay(animated: false);
-              widget.onOpenVersion("obj");
-            }),
-            _mediumButton(context, 'ClassificationModel', backgroundColor: AppColors.purple500, onPressed: () {
-              _removeOverlay(animated: false);
-              widget.onOpenVersion("cls");
-            }),
-            _mediumButton(context, 'SegmentationModel', backgroundColor: AppColors.teal500, onPressed: () {
-              _removeOverlay(animated: false);
-              widget.onOpenVersion("seg");
-            }),
-          ],
-        ),
-      },
-      {
-        'title': 'Model Confidence',
-        'content': Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: [
-            _mediumButton(context, 'Object Detection Model (${widget.config.objectDetectionConfidence.value})',
-                backgroundColor: AppColors.orange500, onPressed: () {
-              _removeOverlay(animated: false);
-              widget.onOpenConfidence("obj");
-            }),
-            _mediumButton(context, 'Classification Model (${widget.config.stageClassificationConfidence.value})',
-                backgroundColor: AppColors.purple500, onPressed: () {
-              _removeOverlay(animated: false);
-              widget.onOpenConfidence("cls");
-            }),
-            _mediumButton(context, 'Segmentation Model (${widget.config.diseaseSegmentationConfidence.value})',
-                backgroundColor: AppColors.teal500, onPressed: () {
-              _removeOverlay(animated: false);
-              widget.onOpenConfidence("seg");
-            }),
-          ],
-        ),
-      },
-      {
-        'title': 'Configuration Actions',
-        'content': Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: [
-            _mediumButton(context, 'Save Configuration', backgroundColor: AppColors.green700, onPressed: () {
-              _removeOverlay(animated: false);
-              widget.saveConfig();
-            }),
-            _mediumButton(context, 'Download Configuration', backgroundColor: AppColors.yellow500, onPressed: () {
-              _removeOverlay(animated: false);
-              widget.onExportConfig();
-            }),
-            _mediumButton(context, 'Upload Configuration', backgroundColor: AppColors.red500, onPressed: () {
-              _removeOverlay(animated: false);
-              widget.onUploadConfig();
-            }),
-          ],
-        ),
-      },
-      {
-        'title': 'Setup Actions',
-        'content': Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: [
-            _mediumButton(context, 'Setup Spray', backgroundColor: AppColors.blue700, onPressed: () {
-              setState(() {
-                _removeOverlay(animated: true);
-                widget.showSprayModal.value = true;
-              });
-            }),
-            _mediumButton(context, 'Set Schedule', backgroundColor: AppColors.orange700, onPressed: () {
-              setState(() {
-                _removeOverlay(animated: false);
-                widget.showScheduleModal.value = true;
-              });
-            }),
-            _mediumButton(context, 'Add Plant', backgroundColor: AppColors.purple700, onPressed: () {
-              setState(() {
-                _removeOverlay(animated: false);
-                widget.showAddPlantModal.value = true;
-              });
-            }),
-          ],
-        ),
-      },
-    ];
-
-    return SizedBox(
-      height: 50,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: sections.map((section) {
-            final keyName = section['title'] as String;
-            _buttonKeys.putIfAbsent(keyName, () => GlobalKey());
-
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              child: GestureDetector(
-                onTap: () {
-                  if (openSection == keyName) {
-                    _removeOverlay();
-                  } else {
-                    setState(() => openSection = keyName);
-                    _showOverlay(section['content'] as Widget, _buttonKeys[keyName]!);
-                  }
-                },
-                child: _accordionButton(
-                  key: _buttonKeys[keyName],
-                  context: context,
-                  title: keyName,
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  Widget _accordionButton({
-    Key? key,
-    required BuildContext context,
-    required String title,
-  }) {
-    return Container(
-      key: key,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.themedColor(context, AppColors.gray200, AppColors.gray800),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: AppColors.themedColor(context, AppColors.gray300, AppColors.gray700),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(30),
-            blurRadius: 2,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.bold,
-          color: AppColors.themedColor(context, AppColors.textLight, AppColors.textDark),
-        ),
-      ),
-    );
-  }
-
-  Widget _mediumButton(
-    BuildContext context,
-    String label, {
-    VoidCallback? onPressed,
-    Color? backgroundColor,
-    Color? foregroundColor,
-  }) {
-    final bgColor = backgroundColor ?? AppColors.green500;
-    final fgColor = foregroundColor ?? AppColors.white;
-
-    return ElevatedButton(
-      onPressed: onPressed,
-      style: ElevatedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-        backgroundColor: bgColor,
-        foregroundColor: fgColor,
-        minimumSize: const Size(0, 0),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-      child: Text(label),
-    );
-  }
-}
-
 class PlantListSection extends StatefulWidget {
-  final dynamic user;
-  final Function(dynamic newUser) updateUser;
-
-  final Map<String, dynamic> models;
-  final List<Plant> allPlants;
-  final Map<String, Plant> transformedPlants;
-  const PlantListSection(
-      {super.key,
-      required this.user,
-      required this.updateUser,
-      required this.models,
-      required this.allPlants,
-      required this.transformedPlants});
+  final Set<void> Function() hide;
+  const PlantListSection({
+    super.key,
+    required this.hide,
+  });
 
   @override
-  State<PlantListSection> createState() => _PlantListSectionState();
+  State<PlantListSection> createState() => PlantListSectionState();
 }
 
-class _PlantListSectionState extends State<PlantListSection> {
+class PlantListSectionState extends State<PlantListSection> with SingleTickerProviderStateMixin {
   ValueNotifier<bool> showSprayModal = ValueNotifier<bool>(false);
   ValueNotifier<bool> showScheduleModal = ValueNotifier<bool>(false);
   ValueNotifier<bool> showAddPlantModal = ValueNotifier<bool>(false);
@@ -373,12 +43,15 @@ class _PlantListSectionState extends State<PlantListSection> {
   String confidenceModalShownTarget = "";
   double initialValueConfidence = 0.0;
 
-  // VERSION
   String versionTitle = "";
   String initialValueVersion = "";
   String versionModalShownTarget = "";
   List<dynamic> allCurrentVersion = [];
 
+  late final AnimationController _controller;
+  late final List<Animation<Offset>> _animations;
+
+  UserDataStore data = UserDataStore();
   void changeTarget(target) {
     setState(() {
       confidenceModalShownTarget = target;
@@ -403,16 +76,15 @@ class _PlantListSectionState extends State<PlantListSection> {
       showModalVersion.value = true;
       if (target == "obj") {
         versionTitle = "YOLOv8 Object Detection Versions";
-        allCurrentVersion = widget.models['yoloObjectDetection'];
+        allCurrentVersion = data.models.value.yoloobjectdetection;
         initialValueVersion = config.objectDetectionVersion.value;
-        
       } else if (target == "cls") {
         versionTitle = "YOLOv8 Classification Versions";
-        allCurrentVersion = widget.models['yoloStageClassification'];
+        allCurrentVersion = data.models.value.yolostageclassification;
         initialValueVersion = config.stageClassificationVersion.value;
       } else {
         versionTitle = "Mask R-CNN Segmentation Versions";
-        allCurrentVersion = widget.models['maskRCNNSegmentation'];
+        allCurrentVersion = data.models.value.maskrcnnsegmentation;
         initialValueVersion = config.diseaseSegmentationVersion.value;
       }
     });
@@ -424,13 +96,37 @@ class _PlantListSectionState extends State<PlantListSection> {
   @override
   void initState() {
     super.initState();
-    final userConfig = widget.user['config'];
+    final userConfig = data.user.value['config'];
     if (userConfig == null || (userConfig is Map && userConfig.isEmpty)) {
       configType = ConfigType.defaultConfigType();
     } else {
       configType = ConfigType.fromJson(userConfig);
     }
     config = Config(configType);
+
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+
+    _animations = List.generate(config.detectedPlants.value.length, (index) {
+      final start = index * 0.05;
+      final end = start + 0.5;
+      return Tween<Offset>(begin: const Offset(0, 0.6), end: Offset.zero).animate(
+        CurvedAnimation(
+          parent: _controller,
+          curve: Interval(start, end, curve: Curves.easeOut),
+        ),
+      );
+    });
+
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   Future<void> uploadConfig(State state, Config config) async {
@@ -446,7 +142,6 @@ class _PlantListSectionState extends State<PlantListSection> {
         }
         return;
       }
-
       final fileBytes = result.files.first.bytes;
       final filePath = result.files.first.path;
       String jsonString;
@@ -462,7 +157,6 @@ class _PlantListSectionState extends State<PlantListSection> {
         }
         return;
       }
-
       final Map<String, dynamic> jsonMap = jsonDecode(jsonString);
       final newConfig = ConfigType.fromJson(jsonMap);
       config.applyConfig(newConfig);
@@ -523,16 +217,10 @@ class _PlantListSectionState extends State<PlantListSection> {
   Future<void> saveConfig(State state) async {
     final store = UserDataStore();
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showConfirmationModal(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Save Configuration?"),
-        content: const Text("This will overwrite your current settings."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("Confirm")),
-        ],
-      ),
+      title: "Save Configuration?",
+      message: "This will overwrite your current settings.",
     );
 
     if (confirmed != true) return;
@@ -549,8 +237,9 @@ class _PlantListSectionState extends State<PlantListSection> {
         'user/update-config',
         method: "POST",
         body: {
-          "email": widget.user['email'],
+          "id": data.user.value['id'],
           "config": currentConfig,
+          'deviceID': data.uuid.value
         },
       );
       if (state.mounted) {
@@ -598,146 +287,158 @@ class _PlantListSectionState extends State<PlantListSection> {
               child: ValueListenableBuilder<List<DetectedPlant>>(
                 valueListenable: config.detectedPlants,
                 builder: (context, detectedPlants, _) {
+                  if (detectedPlants.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.eco, size: 60, color: AppColors.gray500),
+                          const SizedBox(height: 12),
+                          Text(
+                            "No plants detected",
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: AppColors.gray500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
                   return ListView.builder(
                     itemCount: detectedPlants.length,
                     itemBuilder: (context, index) {
                       final plant = detectedPlants[index];
                       final isDisabled = plant.disabled;
 
-                      return Card(
-                        color: isDisabled
-                            ? AppColors.themedColor(
-                                context,
-                                AppColors.gray300,
-                                AppColors.gray900,
-                              )
-                            : AppColors.themedColor(
-                                context,
-                                AppColors.white,
-                                AppColors.gray800,
+                      return AnimatedBuilder(
+                          animation: _controller,
+                          builder: (context, child) {
+                            return Opacity(
+                              opacity: _controller.value >= (index * 0.05) ? 1 : 0,
+                              child: SlideTransition(
+                                position: _animations[index],
+                                child: child,
                               ),
-                        margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 8),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundImage: NetworkImage(plant.image),
-                            foregroundColor: isDisabled ? Colors.grey : null,
-                          ),
-                          title: Text(
-                            plant.key,
-                            style: TextStyle(
-                              color: isDisabled ? Colors.grey : null,
-                              decoration: isDisabled ? TextDecoration.lineThrough : null,
-                            ),
-                          ),
-                          subtitle: Text(
-                            "Detected at ${DateTime.parse(plant.timestamp).toLocal()}",
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: isDisabled ? Colors.grey : null,
-                            ),
-                          ),
-                          trailing: isDisabled
-                              ? TextButton(
-                                  onPressed: () {
-                                    final list = List<DetectedPlant>.from(config.detectedPlants.value);
-                                    list[index] = plant.set(disabled: false);
-                                    config.detectedPlants.value = list;
-                                    AppSnackBar.success(context, "Plant enabled again");
-                                  },
-                                  style: TextButton.styleFrom(
-                                    backgroundColor: AppColors.green500,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 6,
-                                    ),
+                            );
+                          },
+                          child: Card(
+                            color: isDisabled
+                                ? AppColors.themedColor(
+                                    context,
+                                    AppColors.gray300,
+                                    AppColors.gray900,
+                                  )
+                                : AppColors.themedColor(
+                                    context,
+                                    AppColors.white,
+                                    AppColors.gray800,
                                   ),
-                                  child: const Text("Enable"),
-                                )
-                              : Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      crossAxisAlignment: CrossAxisAlignment.end,
-                                      children: [
-                                        Text(
-                                          plant.timestamp.split("T").first,
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey,
-                                          ),
-                                        ),
-                                        if (plant.willSprayEarly)
-                                          const Text(
-                                            "Spray Early",
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: Colors.redAccent,
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
-                                  ],
+                            margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 8),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundImage: CachedNetworkImageProvider(plant.image),
+                                foregroundColor: isDisabled ? Colors.grey : null,
+                              ),
+                              title: Text(
+                                plant.key,
+                                style: TextStyle(
+                                  color: isDisabled ? Colors.grey : null,
+                                  decoration: isDisabled ? TextDecoration.lineThrough : null,
                                 ),
-                          onTap: isDisabled
-                              ? null
-                              : () {
-                                  final newPlant = widget.transformedPlants[plant.key];
-                                  if (newPlant != null) {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => PlantDetailScreen(
-                                          plant: newPlant,
-                                          detectedPlant: plant,
-                                          onUpdate: (updatedPlant) {
-                                            final list = List<DetectedPlant>.from(config.detectedPlants.value);
-                                            final idx = list.indexWhere((p) => p.key == updatedPlant.key);
-                                            if (idx != -1) {
-                                              list[idx] = updatedPlant;
-                                              config.detectedPlants.value = list;
-                                            }
-                                          },
-                                          onRemove: (plantKey) {
-                                            final list = List<DetectedPlant>.from(config.detectedPlants.value);
-                                            list.removeWhere((p) => p.key == plantKey);
-                                            config.detectedPlants.value = list;
-                                          },
+                              ),
+                              subtitle: Text(
+                                "Detected at ${DateTime.parse(plant.timestamp).toLocal()}",
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: isDisabled ? Colors.grey : null,
+                                ),
+                              ),
+                              trailing: isDisabled
+                                  ? TextButton(
+                                      onPressed: () {
+                                        final list = List<DetectedPlant>.from(config.detectedPlants.value);
+                                        list[index] = plant.set(disabled: false);
+                                        config.detectedPlants.value = list;
+                                        AppSnackBar.success(context, "Plant enabled again");
+                                      },
+                                      style: TextButton.styleFrom(
+                                        backgroundColor: AppColors.green500,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 6,
                                         ),
                                       ),
-                                    );
-                                  } else {
-                                    AppSnackBar.info(context, "Plant details not found");
-                                  }
-                                },
-                        ),
-                      );
+                                      child: const Text("Enable"),
+                                    )
+                                  : Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          crossAxisAlignment: CrossAxisAlignment.end,
+                                          children: [
+                                            Text(
+                                              plant.timestamp.split("T").first,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                            if (plant.willSprayEarly)
+                                              const Text(
+                                                "Spray Early",
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: Colors.redAccent,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                        const SizedBox(width: 8),
+                                        const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                                      ],
+                                    ),
+                              onTap: isDisabled
+                                  ? null
+                                  : () {
+                                      final newPlant = data.transformedPlants.value[plant.key];
+                                      if (newPlant != null) {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => PlantDetailScreen(
+                                              plant: newPlant,
+                                              detectedPlant: plant,
+                                              onUpdate: (updatedPlant) {
+                                                final list = List<DetectedPlant>.from(config.detectedPlants.value);
+                                                final idx = list.indexWhere((p) => p.key == updatedPlant.key);
+                                                if (idx != -1) {
+                                                  list[idx] = updatedPlant;
+                                                  config.detectedPlants.value = list;
+                                                }
+                                              },
+                                              onRemove: (plantKey) {
+                                                final list = List<DetectedPlant>.from(config.detectedPlants.value);
+                                                list.removeWhere((p) => p.key == plantKey);
+                                                config.detectedPlants.value = list;
+                                              },
+                                            ),
+                                          ),
+                                        );
+                                      } else {
+                                        AppSnackBar.info(context, "Plant details not found");
+                                      }
+                                    },
+                            ),
+                          ));
                     },
                   );
                 },
               ),
             ),
-            ActionAccordion(
-                showSprayModal: showSprayModal,
-                showScheduleModal: showScheduleModal,
-                showAddPlantModal: showAddPlantModal,
-                compareModal: compareModal,
-                config: config,
-                onExportConfig: () {
-                  exportOrShareConfig(this, config);
-                },
-                onUploadConfig: () {
-                  uploadConfig(this, config);
-                },
-                saveConfig: () {
-                  saveConfig(this);
-                },
-                onOpenConfidence: changeTarget,
-                onOpenVersion: chooseModalChange),
           ],
         ),
         ValueListenableBuilder<bool>(
@@ -747,7 +448,10 @@ class _PlantListSectionState extends State<PlantListSection> {
                   ? ConfidenceModal(
                       show: true,
                       title: confidenceTitle,
-                      onClose: () => showConfidenceModal.value = false,
+                      onClose: () {
+                        widget.hide();
+                        showConfidenceModal.value = false;
+                      },
                       initialValue: initialValueConfidence,
                       onSave: (double value) {
                         final snappedValue = double.parse(value.toStringAsFixed(1));
@@ -770,7 +474,10 @@ class _PlantListSectionState extends State<PlantListSection> {
                   ? ModelVersionModal(
                       show: true,
                       title: versionTitle,
-                      onClose: () => showModalVersion.value = false,
+                      onClose: () {
+                        widget.hide();
+                        showModalVersion.value = false;
+                      },
                       initialVersion: initialValueVersion,
                       versions: allCurrentVersion,
                       onSave: (String selected) {
@@ -786,7 +493,6 @@ class _PlantListSectionState extends State<PlantListSection> {
                     )
                   : const SizedBox.shrink();
             }),
-        
         ValueListenableBuilder<bool>(
             valueListenable: compareModal,
             builder: (context, value, child) {
@@ -796,14 +502,16 @@ class _PlantListSectionState extends State<PlantListSection> {
                       builder: (context, sprays, child) {
                         return CompareModelsModal(
                           show: true,
-                          onClose: () => compareModal.value = false,
-                          models: widget.models,
+                          onClose: () {
+                            widget.hide();
+                            compareModal.value = false;
+                          },
+                          models: data.models.value,
                         );
                       },
                     )
                   : const SizedBox.shrink();
             }),
-
         ValueListenableBuilder<bool>(
             valueListenable: showSprayModal,
             builder: (context, value, child) {
@@ -813,7 +521,10 @@ class _PlantListSectionState extends State<PlantListSection> {
                       builder: (context, sprays, child) {
                         return SetupSprayModal(
                           show: true,
-                          onClose: () => showSprayModal.value = false,
+                          onClose: () {
+                            widget.hide();
+                            showSprayModal.value = false;
+                          },
                           sprays: sprays,
                         );
                       },
@@ -829,7 +540,10 @@ class _PlantListSectionState extends State<PlantListSection> {
                       builder: (context, schedule, child) {
                         return SetScheduleModal(
                           show: true,
-                          onClose: () => showScheduleModal.value = false,
+                          onClose: () {
+                            widget.hide();
+                            showScheduleModal.value = false;
+                          },
                           schedule: schedule,
                         );
                       },
@@ -845,9 +559,12 @@ class _PlantListSectionState extends State<PlantListSection> {
                     builder: (context, detected, _) {
                       return AddPlantModal(
                         show: value,
-                        onClose: () => showAddPlantModal.value = false,
-                        allPlants: widget.allPlants,
-                        allPlantsTransformed: widget.transformedPlants,
+                        onClose: () {
+                          widget.hide();
+                          showAddPlantModal.value = false;
+                        },
+                        allPlants: data.allPlants.value,
+                        allPlantsTransformed: data.transformedPlants.value,
                         detectedPlants: detected,
                         onUpdate: (List<DetectedPlant> updated) {
                           config.detectedPlants.value = updated;

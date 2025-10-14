@@ -1,12 +1,13 @@
 import 'package:android/screens/loading.dart';
 import 'package:android/store/data.dart';
+import 'package:android/widgets/exit_confirmation.dart';
 import 'package:flutter/material.dart';
 import 'package:android/screens/registration.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final store = UserDataStore();
-  // store.reset();
+  // await store.reset();
   await store.loadData();
   runApp(MyApp(store: store));
 }
@@ -29,18 +30,15 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
+    Widget homeScreen =
+        widget.store.isLoggedIn() ? LoadingScreen(toggleTheme: _toggleTheme) : AuthScreen(toggleTheme: _toggleTheme);
+
     return MaterialApp(
       title: 'AGRIBOT Application',
       themeMode: _themeMode,
       theme: ThemeData.light(),
       darkTheme: ThemeData.dark(),
-      home: widget.store.isLoggedIn()
-          ? LoadingScreen(store: widget.store)
-          : AuthScreen(
-              toggleTheme: _toggleTheme,
-              user: widget.store.user.value,
-              updateUser: (newUser) => setState(() => widget.store.user.value = newUser),
-            ),
+      home: DoubleBackToExitWrapper(child: homeScreen),
     );
   }
 }

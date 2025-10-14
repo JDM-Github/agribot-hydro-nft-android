@@ -8,7 +8,7 @@ class VersionRadarChart extends StatelessWidget {
   final Color lightColor;
   final Color darkColor;
 
-  const VersionRadarChart({
+  VersionRadarChart({
     super.key,
     required this.title,
     required this.models,
@@ -34,9 +34,14 @@ class VersionRadarChart extends StatelessWidget {
     "mAP50_95": "mAP50-95",
   };
 
-  List<RadarDataSet> _buildDataSets(BuildContext context) {
-    final themedColor = AppColors.themedColor(context, lightColor, darkColor);
+  final List<Color> _defaultColors = [
+    Colors.blueAccent,
+    Colors.greenAccent,
+    Colors.orangeAccent,
+    Colors.purpleAccent,
+  ];
 
+  List<RadarDataSet> _buildDataSets(BuildContext context) {
     return models.asMap().entries.map((entry) {
       final i = entry.key;
       final model = entry.value;
@@ -46,14 +51,13 @@ class VersionRadarChart extends StatelessWidget {
         return (val != null && val >= 0) ? val * 100 : 0.0;
       }).toList();
 
-      // Alternate colors for multiple models
-      final baseColor = themedColor.withOpacity(1 - (i * 0.2).clamp(0, 0.8));
+      final baseColor = _defaultColors[i % _defaultColors.length].withOpacity(0.8);
 
       return RadarDataSet(
-        fillColor: baseColor.withAlpha(50),
+        fillColor: baseColor.withAlpha(70),
         borderColor: baseColor,
-        entryRadius: 3,
-        borderWidth: 2,
+        borderWidth: 3,
+        entryRadius: 4.5,
         dataEntries: values.map((v) => RadarEntry(value: v)).toList(),
       );
     }).toList();
@@ -62,16 +66,16 @@ class VersionRadarChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-      elevation: 3,
+      margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      elevation: 4,
       color: AppColors.themedColor(
         context,
         Colors.white,
         AppColors.gray900,
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             AnimatedDefaultTextStyle(
@@ -91,23 +95,23 @@ class VersionRadarChart extends StatelessWidget {
               height: 220,
               child: RadarChart(
                 RadarChartData(
-                  radarShape: RadarShape.polygon,
+                  radarShape: RadarShape.circle,
                   dataSets: _buildDataSets(context),
-                  radarBorderData: const BorderSide(color: AppColors.gray400),
-                  tickCount: 4,
-                  getTitle: (index, angle) {
-                    final label = VersionRadarChart.metricLabels[VersionRadarChart.metricKeys[index]]!;
-                    return RadarChartTitle(
-                      text: label,
-                      angle: angle,
-                    );
-                  },
-                  ticksTextStyle: TextStyle(
-                    fontSize: 9,
+                  radarBorderData: BorderSide(
                     color: AppColors.themedColor(
                       context,
+                      AppColors.gray400,
                       AppColors.gray600,
-                      AppColors.gray300,
+                    ),
+                  ),
+                  tickCount: 4,
+                  ticksTextStyle: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.themedColor(
+                      context,
+                      AppColors.gray700,
+                      AppColors.gray200,
                     ),
                   ),
                   gridBorderData: BorderSide(
@@ -123,10 +127,59 @@ class VersionRadarChart extends StatelessWidget {
                     AppColors.gray100,
                     AppColors.gray900,
                   ),
+                  tickBorderData: const BorderSide(color: AppColors.gray600),
+                  getTitle: (index, angle) {
+                    final label = VersionRadarChart.metricLabels[VersionRadarChart.metricKeys[index]]!;
+                    return RadarChartTitle(text: label, angle: angle);
+                  },
+                  // radarTouchData: RadarTouchData(
+                  //   enabled: true,
+                  //   touchCallback: (event, response) {
+                  //     if (response != null && response.touchedSpot != null) {
+                  //       final touchedEntry = response.touchedSpot!.touchedRadarEntry;
+                  //       final value = touchedEntry.value;
+                  //       ScaffoldMessenger.of(context).showSnackBar(
+                  //         SnackBar(
+                  //           content: Text('Touched value: ${value.toStringAsFixed(2)}%'),
+                  //           duration: const Duration(milliseconds: 800),
+                  //         ),
+                  //       );
+                  //     }
+                  //   },
+                  // ),
+
                 ),
                 duration: const Duration(milliseconds: 800),
                 curve: Curves.easeOutCubic,
               ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 16,
+              runSpacing: 8,
+              children: models.asMap().entries.map((entry) {
+                final i = entry.key;
+                final modelName = entry.value['name'] ?? 'Model ${i + 1}';
+                final color = _defaultColors[i % _defaultColors.length];
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(width: 12, height: 12, color: color),
+                    const SizedBox(width: 4),
+                    Text(
+                      modelName,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.themedColor(
+                          context,
+                          AppColors.gray800,
+                          AppColors.gray200,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
             ),
           ],
         ),

@@ -210,6 +210,20 @@ class Plant {
         'description': description,
         'diseases': diseases.map((d) => d.toJson()).toList(),
       };
+
+  Plant copyWith({
+    String? name,
+    String? image,
+    String? description,
+    List<Disease>? diseases,
+  }) {
+    return Plant(
+      name: name ?? this.name,
+      image: image ?? this.image,
+      description: description ?? this.description,
+      diseases: diseases ?? this.diseases,
+    );
+  }
 }
 
 
@@ -340,6 +354,20 @@ class FolderRecord {
       'name': name,
       'imageUrl': imageUrl,
     };
+  }
+
+  FolderRecord copyWith({
+    String? slug,
+    String? date,
+    String? name,
+    String? imageUrl,
+  }) {
+    return FolderRecord(
+      slug: slug ?? this.slug,
+      date: date ?? this.date,
+      name: name ?? this.name,
+      imageUrl: imageUrl ?? this.imageUrl,
+    );
   }
 }
 
