@@ -1,3 +1,4 @@
+import 'package:android/utils/dialog_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:android/classes/snackbar.dart';
 import 'package:android/utils/struct.dart';
@@ -128,7 +129,7 @@ class _SetScheduleModalState extends State<SetScheduleModal> with SingleTickerPr
       return const SizedBox.shrink();
     }
 
-    final bgColor = AppColors.themedColor(context, AppColors.white, AppColors.gray800);
+    final bgColor = AppColors.themedColor(context, AppColors.gray200, AppColors.gray800);
     final textColor = AppColors.themedColor(context, AppColors.textLight, AppColors.textDark);
     final borderColor = AppColors.themedColor(context, AppColors.gray200, AppColors.gray700);
 
@@ -180,7 +181,6 @@ class _SetScheduleModalState extends State<SetScheduleModal> with SingleTickerPr
                       ),
                       const SizedBox(height: 12),
 
-                      // Days selection
                       Wrap(
                         spacing: 6,
                         runSpacing: 6,
@@ -214,6 +214,11 @@ class _SetScheduleModalState extends State<SetScheduleModal> with SingleTickerPr
 
                       DropdownButtonFormField<String>(
                         value: _tempSchedule.frequency,
+                        dropdownColor: AppColors.themedColor(context, AppColors.white, AppColors.gray700),
+                        style: TextStyle(
+                          color: AppColors.themedColor(context, AppColors.textLight, AppColors.textDark),
+                          fontSize: 13,
+                        ),
                         decoration: InputDecoration(
                           labelText: 'Frequency',
                           labelStyle: TextStyle(color: textColor, fontSize: 13),
@@ -276,7 +281,7 @@ class _SetScheduleModalState extends State<SetScheduleModal> with SingleTickerPr
                                               }
                                             }
 
-                                            final TimeOfDay? picked = await showTimePicker(
+                                            final TimeOfDay? picked = await showThemedTimePicker(
                                               context: context,
                                               initialTime: initialTime,
                                             );
@@ -347,7 +352,7 @@ class _SetScheduleModalState extends State<SetScheduleModal> with SingleTickerPr
                                               }
                                             }
 
-                                            final TimeOfDay? picked = await showTimePicker(
+                                            final TimeOfDay? picked = await showThemedTimePicker(
                                               context: context,
                                               initialTime: initialTime,
                                             );
@@ -466,7 +471,6 @@ class _SetScheduleModalState extends State<SetScheduleModal> with SingleTickerPr
 
   DateTime? _parseTime(String input) {
     try {
-      // Supports "HH:mm" format
       final parts = input.split(':');
       if (parts.length == 2) {
         final hour = int.tryParse(parts[0]);

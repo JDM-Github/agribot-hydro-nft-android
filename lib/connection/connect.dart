@@ -1,4 +1,4 @@
-import 'package:android/classes/snackbar.dart';
+import 'package:android/utils/struct.dart';
 import 'package:flutter/foundation.dart';
 import 'socketio.dart';
 
@@ -14,7 +14,7 @@ class Connection {
   static final ValueNotifier<bool> performingScan = ValueNotifier(false);
 
   static final ValueNotifier<Map<String, dynamic>> tcrt5000 = ValueNotifier({"left": false, "right": false});
-  static final ValueNotifier<List<bool>> waterReadings = ValueNotifier([]);
+  static final ValueNotifier<List<bool>> waterReadings = ValueNotifier([false, false, false, false]);
   static final ValueNotifier<Map<String, dynamic>> tcs34725 = ValueNotifier({
     "raw": {"r": 0, "g": 0, "b": 0, "c": 0},
     "normalized": {"r": 0, "g": 0, "b": 0},
@@ -27,8 +27,16 @@ class Connection {
   static final ValueNotifier<Uint8List?> robotLiveFrame = ValueNotifier(null);
 
   static final ValueNotifier<List<dynamic>> latestResults = ValueNotifier([]);
-  static final ValueNotifier<List<dynamic>> plantHistories = ValueNotifier([]);
+  static final ValueNotifier<PlantHistories> plantHistories = ValueNotifier([]);
   static final ValueNotifier<List<String>> logs = ValueNotifier([]);
+
+  static bool parseBool(dynamic data) {
+    if (data is bool) return data;
+    if (data is num) return data != 0;
+    if (data is String) return data == 'true' || data == '1';
+    return false;
+  }
+
 
   static void init() {
     SocketService.init();
@@ -47,49 +55,63 @@ class Connection {
       _resetStates();
     });
 
-    // Sensors
-    // socket.on('tcrt5000', (data) => tcrt5000.value = Map<String, dynamic>.from(data));
-    // socket.on('watersensor', (data) {
-    //   waterReadings.value = List<bool>.from(data['readings']);
-    // });
-    // socket.on('tcs34725', (data) {
-    //   tcs34725.value = Map<String, dynamic>.from(data);
-    // });
-    // socket.on('ultrasonic', (data) => ultrasonic.value = data);
+    socket.on('tcrt5000', (data) => tcrt5000.value = Map<String, dynamic>.from(data));
+    socket.on('waterSensors', (data) {
+      final readings = List<bool>.from(
+        (data as List).map((e) => e == 1 || e == true),
+      );
+      Connection.waterReadings.value = readings;
+    });
+    socket.on('tcs34725', (data) {
+      tcs34725.value = Map<String, dynamic>.from(data);
+    });
+    socket.on('ultrasonic', (data) => ultrasonic.value = data);
 
-    // // Robot and camera events
-    socket.on('robot-running', (data) => robotRunning.value = data);
-    socket.on('livestream-state', (data) => livestreamState.value = data);
-    socket.on('scanning-state', (data) => scanningState.value = data == true);
-    socket.on('robot-scanning-state', (data) => robotScanningState.value = data == true);
-    socket.on('stop-capturing-image', (data) => stopCapturingImage.value = data == true);
-    socket.on('performing-scan', (data) => performingScan.value = data == true);
-    socket.on('robot-livestream', (data) => robotLivestream.value = data == true);
+    socket.on('robot-running', (data) => robotRunning.value = data is int ? data : 0);
+    socket.on('livestream-state', (data) => livestreamState.value = data is int ? data : 0);
+    socket.on('scanning-state', (data) => scanningState.value = parseBool(data));
+    socket.on('robot-scanning-state', (data) => robotScanningState.value = parseBool(data));
+    socket.on('stop-capturing-image', (data) => stopCapturingImage.value = parseBool(data));
+    socket.on('performing-scan', (data) => performingScan.value = parseBool(data));
+    socket.on('robot-livestream', (data) {
+      final boolValue = parseBool(data);
+      if (robotLivestream.value != boolValue) {
+        robotLivestream.value = boolValue;
+      }
+    });
+
+
 
     // // Frames
-    // socket.on('scan_frame', (data) => scanFrame.value = Uint8List.fromList(data));
     socket.on('livestream_frame', (data) => liveFrame.value = Uint8List.fromList(data));
-    // socket.on('robot_livestream_frame', (data) => robotLiveFrame.value = Uint8List.fromList(data));
+    socket.on('livestream_frame_stop', (data) => liveFrame.value = null);
+    socket.on('robot_livestream_frame', (data) => robotLiveFrame.value = Uint8List.fromList(data));
+    socket.on('robot_livestream_frame_stop', (data) => robotLiveFrame.value = null);
+    socket.on('logs', (data) {
+      if (data['logs'] != null) {
+        logs.value = [...logs.value, ...List<String>.from(data['logs'])].take(300).toList();
+      }
+    });
 
-    // // Results and logs
-    // socket.on('latest_results', (data) {
-    //   try {
-    //     latestResults.value = List.from(data);
-    //   } catch (_) {}
-    // });
-    // socket.on('logs', (data) {
-    //   if (data['logs'] != null) {
-    //     logs.value = [...logs.value, ...List<String>.from(data['logs'])].take(300).toList();
-    //   }
-    // });
+    socket.on('plant-histories', (data) {
+      final incoming = List<Map<String, dynamic>>.from(data).map((e) {
+        e['id'] ??= 'plant-${DateTime.now().millisecondsSinceEpoch}-${DateTime.now().microsecond}';
+        return PlantHistory.fromJson(e);
+      }).toList();
 
-    // socket.on('plant-histories', (data) {
-    //   final incoming = List<Map<String, dynamic>>.from(data);
-    //   final unique = {
-    //     for (var e in [...incoming, ...plantHistories.value]) '${e['src']}_${e['timestamp']}': e
-    //   }.values.toList();
-    //   plantHistories.value = unique.take(6).toList();
-    // });
+      final combined = [...incoming, ...plantHistories.value];
+      final unique = <String, PlantHistory>{};
+      for (final item in combined) {
+        final key = '${item.src}_${item.timestamp}';
+        unique[key] = item;
+      }
+      plantHistories.value = unique.values.take(6).toList();
+    });
+
+  }
+
+  static void emitSetLogDate(String date) {
+    SocketService.emit("set_log_date", {date: date});
   }
 
   static void connect() {

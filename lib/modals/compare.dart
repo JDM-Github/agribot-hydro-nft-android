@@ -50,7 +50,7 @@ class _CompareModelsModalState extends State<CompareModelsModal> with SingleTick
       return const SizedBox.shrink();
     }
 
-    final bgColor = AppColors.themedColor(context, AppColors.white, AppColors.gray800);
+    final bgColor = AppColors.themedColor(context, AppColors.gray200, AppColors.gray800);
     final textColor = AppColors.themedColor(context, AppColors.textLight, AppColors.textDark);
 
     return FadeTransition(

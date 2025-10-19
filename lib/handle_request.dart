@@ -3,13 +3,13 @@ import 'dart:convert';
 
 // RESTAPI
 class RequestHandler {
-  final bool development;
-  RequestHandler({this.development = true});
+
+  static bool useLiveUrl = false; 
 
   String get baseUrl {
-    String dev = 'https://c204d49e--agribot-hydro-nft-admin.netlify.live';
-    // return development ? 'http://localhost:8888' : 'https://agribot-hydro-nft-admin.netlify.app';
-    return dev;
+    return RequestHandler.useLiveUrl
+        ? 'https://agribot-hydro-nft-admin.netlify.app'
+        : 'https://c204d49e--agribot-hydro-nft-admin.netlify.live';
   }
 
   Future<Map<String, dynamic>> handleRequest(
@@ -66,5 +66,90 @@ class RequestHandler {
     } catch (e) {
       return {'success': false, 'message': 'Request failed: $e'};
     }
+  }
+
+  Future<List<dynamic>> customFetch(
+    String endpoint, {
+    String method = 'GET',
+    Map<String, dynamic>? body,
+    String? token,
+    bool isMultipart = false,
+  }) async {
+    final url = Uri.parse('https://agribot-pi4.tail13df43.ts.net:8000/$endpoint');
+
+    try {
+      http.Response response;
+
+      if (isMultipart && body != null && body.containsKey('file')) {
+        final request = http.MultipartRequest(method.toUpperCase(), url);
+
+        if (token != null) {
+          request.headers['Authorization'] = 'Bearer $token';
+        }
+
+        final fileBytes = body['file'] as List<int>;
+        final fileName = body['fileName'] ?? 'upload.jpg';
+        request.files.add(
+          http.MultipartFile.fromBytes('file', fileBytes, filename: fileName),
+        );
+
+        body.forEach((key, value) {
+          if (key != 'file' && key != 'fileName') {
+            request.fields[key] = value.toString();
+          }
+        });
+
+        final streamed = await request.send();
+        response = await http.Response.fromStream(streamed);
+      } else {
+        final headers = <String, String>{'Content-Type': 'application/json'};
+        if (token != null) headers['Authorization'] = 'Bearer $token';
+
+        final encodedBody = (body != null && method.toUpperCase() != 'GET') ? jsonEncode(body) : null;
+
+        switch (method.toUpperCase()) {
+          case 'GET':
+            response = await http.get(url, headers: headers);
+            break;
+          case 'POST':
+            response = await http.post(url, headers: headers, body: encodedBody);
+            break;
+          case 'PUT':
+            response = await http.put(url, headers: headers, body: encodedBody);
+            break;
+          case 'DELETE':
+            response = await http.delete(url, headers: headers, body: encodedBody);
+            break;
+          default:
+            throw Exception('Unsupported HTTP method: $method');
+        }
+      }
+
+      final data = jsonDecode(response.body);
+      return [response.statusCode >= 200 && response.statusCode < 300, data];
+    } catch (e) {
+      return [
+        false,
+        {'error': e.toString()}
+      ];
+    }
+  }
+
+  Future<List<dynamic>> authFetch(
+    String endpoint, {
+    String method = 'GET',
+    Map<String, dynamic>? body,
+    String token = 'agribot-pi4',
+    bool isMultipart = false
+  }) async {
+    return customFetch(endpoint, method: method, body: body, token: token, isMultipart: isMultipart);
+  }
+  Future<List<dynamic>> normalFetch(
+    String endpoint, {
+    String method = 'GET',
+    Map<String, dynamic>? body,
+    bool isMultipart = false
+  }) async {
+    return customFetch(endpoint, method: method, body: body, token: null, isMultipart: isMultipart);
   }
 }

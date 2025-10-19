@@ -1,4 +1,5 @@
 import 'package:android/classes/snackbar.dart';
+import 'package:android/utils/dialog_utils.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:android/utils/colors.dart';
@@ -227,7 +228,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                                           initialTime = TimeOfDay(hour: parsed.hour, minute: parsed.minute);
                                         }
 
-                                        final TimeOfDay? picked = await showTimePicker(
+                                        final TimeOfDay? picked = await showThemedTimePicker(
                                           context: context,
                                           initialTime: initialTime,
                                         );
@@ -236,7 +237,6 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                                           int hour = picked.hour;
                                           int minute = picked.minute;
 
-                                          // Clamp times
                                           if (hour < 3) {
                                             hour = 3;
                                             minute = 0;
@@ -300,7 +300,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                                           initialTime = TimeOfDay(hour: parsed.hour, minute: parsed.minute);
                                         }
 
-                                        final TimeOfDay? picked = await showTimePicker(
+                                        final TimeOfDay? picked = await showThemedTimePicker(
                                           context: context,
                                           initialTime: initialTime,
                                         );
@@ -309,7 +309,6 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                                           int hour = picked.hour;
                                           int minute = picked.minute;
 
-                                          // Clamp times
                                           if (hour < 3) {
                                             hour = 3;
                                             minute = 0;

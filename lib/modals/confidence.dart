@@ -56,7 +56,7 @@ class _ConfidenceModalState extends State<ConfidenceModal> with SingleTickerProv
       return const SizedBox.shrink();
     }
 
-    final bgColor = AppColors.themedColor(context, AppColors.white, AppColors.gray800);
+    final bgColor = AppColors.themedColor(context, AppColors.gray200, AppColors.gray800);
     final textColor = AppColors.themedColor(context, AppColors.textLight, AppColors.textDark);
 
     final values = List.generate(10, (i) => 0.1 * (i + 1));

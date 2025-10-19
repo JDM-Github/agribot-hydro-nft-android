@@ -9,40 +9,40 @@ class AllStates {
     if (_isListening) return;
     _isListening = true;
 
-    Connection.isConnected.addListener(_updateAllState);
-    Connection.robotRunning.addListener(_updateAllState);
-    Connection.livestreamState.addListener(_updateAllState);
-    Connection.scanningState.addListener(_updateAllState);
-    Connection.robotScanningState.addListener(_updateAllState);
-    Connection.performingScan.addListener(_updateAllState);
-    Connection.robotLivestream.addListener(_updateAllState);
-    Connection.stopCapturingImage.addListener(_updateAllState);
+    Connection.isConnected.addListener(updateAllState);
+    Connection.robotRunning.addListener(updateAllState);
+    Connection.livestreamState.addListener(updateAllState);
+    Connection.scanningState.addListener(updateAllState);
+    Connection.robotScanningState.addListener(updateAllState);
+    Connection.performingScan.addListener(updateAllState);
+    Connection.robotLivestream.addListener(updateAllState);
+    Connection.stopCapturingImage.addListener(updateAllState);
   }
 
-  static void _updateAllState() {
+  static void updateAllState() {
     allState.value = _snapshot();
   }
 
   static Map<String, dynamic> _snapshot() => {
-        "conn": Connection.isConnected.value,
-        "robot": Connection.robotRunning.value,
-        "live": Connection.livestreamState.value,
-        "scan": Connection.scanningState.value,
-        "rscan": Connection.robotScanningState.value,
-        "performing": Connection.performingScan.value,
-        "robotLive": Connection.robotLivestream.value,
-        "stopCapture": Connection.stopCapturingImage.value,
-      };
+    "conn": Connection.isConnected.value,
+    "robot": Connection.robotRunning.value,
+    "live": Connection.livestreamState.value,
+    "scan": Connection.scanningState.value,
+    "rscan": Connection.robotScanningState.value,
+    "performing": Connection.performingScan.value,
+    "robotLive": Connection.robotLivestream.value,
+    "stopCapture": Connection.stopCapturingImage.value,
+  };
 
   static void dispose() {
-    Connection.isConnected.removeListener(_updateAllState);
-    Connection.robotRunning.removeListener(_updateAllState);
-    Connection.livestreamState.removeListener(_updateAllState);
-    Connection.scanningState.removeListener(_updateAllState);
-    Connection.robotScanningState.removeListener(_updateAllState);
-    Connection.performingScan.removeListener(_updateAllState);
-    Connection.robotLivestream.removeListener(_updateAllState);
-    Connection.stopCapturingImage.removeListener(_updateAllState);
+    Connection.isConnected.removeListener(updateAllState);
+    Connection.robotRunning.removeListener(updateAllState);
+    Connection.livestreamState.removeListener(updateAllState);
+    Connection.scanningState.removeListener(updateAllState);
+    Connection.robotScanningState.removeListener(updateAllState);
+    Connection.performingScan.removeListener(updateAllState);
+    Connection.robotLivestream.removeListener(updateAllState);
+    Connection.stopCapturingImage.removeListener(updateAllState);
     _isListening = false;
   }
 }

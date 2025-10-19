@@ -53,7 +53,7 @@ class _RegisterDeviceModalState extends State<RegisterDeviceModal> with SingleTi
   Widget build(BuildContext context) {
     if (!widget.show && _controller.status == AnimationStatus.dismissed) return const SizedBox.shrink();
 
-    final bgColor = AppColors.themedColor(context, AppColors.white, AppColors.gray800);
+    final bgColor = AppColors.themedColor(context, AppColors.gray200, AppColors.gray800);
     final borderColor = AppColors.themedColor(context, AppColors.gray300, AppColors.gray700);
     final textColor = AppColors.themedColor(context, AppColors.textLight, AppColors.textDark);
 

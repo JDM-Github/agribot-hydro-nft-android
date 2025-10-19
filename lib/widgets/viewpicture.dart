@@ -1,10 +1,14 @@
+import 'package:android/handle_request.dart';
+import 'package:android/store/data.dart';
 import 'package:flutter/material.dart';
-import 'package:android/utils/colors.dart';
+import '../utils/colors.dart';
+import '../classes/snackbar.dart';
 
 class ViewPictureModal extends StatefulWidget {
   final Map<String, dynamic> selectedImage;
   final Function(String src) downloadImage;
   final VoidCallback onClose;
+  final Function(String id) closeUpdate;
   final bool noDownloadDelete;
 
   const ViewPictureModal({
@@ -12,6 +16,7 @@ class ViewPictureModal extends StatefulWidget {
     required this.selectedImage,
     required this.downloadImage,
     required this.onClose,
+    required this.closeUpdate,
     this.noDownloadDelete = false,
   });
 
@@ -20,23 +25,19 @@ class ViewPictureModal extends StatefulWidget {
 }
 
 class _ViewPictureModalState extends State<ViewPictureModal> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scale;
-  late Animation<double> _opacity;
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 300),
+  );
+  late final Animation<double> _opacity = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+  late final Animation<Offset> _slide = Tween<Offset>(
+    begin: const Offset(0, 1),
+    end: Offset.zero,
+  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 250),
-    );
-    _scale = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
-    );
-    _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
-    );
     _controller.forward();
   }
 
@@ -46,189 +47,244 @@ class _ViewPictureModalState extends State<ViewPictureModal> with SingleTickerPr
     super.dispose();
   }
 
+  Future<void> deleteImage(String id) async {
+    final handler = RequestHandler();
+    AppSnackBar.loading(context, "Deleting image...", id: "delete-image");
+    try {
+      final response = await handler.handleRequest('cloudinary/delete-image', method: "POST", body: {"public_id": id});
+      if (mounted) {
+        AppSnackBar.hide(context, id: "delete-image");
+      }
+      if (response['success'] == true) {
+        if (mounted) {
+          AppSnackBar.hide(context, id: "delete-image");
+          AppSnackBar.success(context, "Image deleted successfully.");
+        }
+        final store = UserDataStore();
+        final cached = store.folderImages.value;
+        final updated = <String, List<Map<String, dynamic>>>{};
+        cached.forEach((slug, imgs) {
+          updated[slug] = imgs.where((img) => img['id'] != id).toList();
+        });
+
+        store.folderImages.value = updated;
+        await store.saveData();
+        widget.closeUpdate(id);
+      } else {
+        if (mounted) {
+          AppSnackBar.error(context, response['message'] ?? "Failed to delete image");
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        AppSnackBar.hide(context, id: "delete-image");
+        AppSnackBar.error(context, "Error deleting image: $e");
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final isScanbox = widget.selectedImage["plantName"] == "SCANBOX";
-    final maxHeight = MediaQuery.of(context).size.height * 0.9;
+    final image = widget.selectedImage;
+    final isScanbox = image["plantName"] == "SCANBOX";
+    final bgColor = AppColors.themedColor(context, AppColors.white, AppColors.gray800);
+    final textColor = AppColors.themedColor(context, AppColors.textLight, AppColors.textDark);
 
     return FadeTransition(
       opacity: _opacity,
       child: Stack(
         children: [
-          // Background overlay with gradient
           GestureDetector(
             onTap: widget.onClose,
             child: Container(
+              color: Colors.black.withAlpha(150),
               width: double.infinity,
               height: double.infinity,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.black.withAlpha(155), Colors.black.withAlpha(200)],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-              ),
             ),
           ),
-          Center(
-            child: ScaleTransition(
-              scale: _scale,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: 350,
-                  maxHeight: maxHeight,
-                ),
+          SlideTransition(
+            position: _slide,
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Material(
+                color: bgColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                elevation: 20,
                 child: Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.themedColor(context, AppColors.white, AppColors.gray900),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withAlpha(60),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      )
-                    ],
-                  ),
+                  height: MediaQuery.of(context).size.height * 0.85,
+                  padding: const EdgeInsets.all(16),
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Stack(
+                      // Header
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Container(
-                            height: 200,
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              color: AppColors.themedColor(context, AppColors.gray200, AppColors.gray800),
-                              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                              child: Image.network(
-                                widget.selectedImage["src"],
-                                fit: BoxFit.contain,
-                                width: double.infinity,
-                                height: double.infinity,
-                              ),
+                          Text(
+                            isScanbox ? "Scanbox Image" : "ROI Image",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: textColor,
                             ),
                           ),
-                          // Positioned(
-                          //   bottom: 10,
-                          //   left: 10,
-                          //   child: Container(
-                          //     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          //     decoration: BoxDecoration(
-                          //       color: Colors.black54,
-                          //       borderRadius: BorderRadius.circular(8),
-                          //     ),
-                          //     child: Text(
-                          //       "${widget.selectedImage["id"]} | Captured at: ${widget.selectedImage["timestamp"]}",
-                          //       style: const TextStyle(
-                          //         color: Colors.white,
-                          //         fontSize: 12,
-                          //         fontWeight: FontWeight.w500,
-                          //       ),
-                          //     ),
-                          //   ),
-                          // ),
-                          Positioned(
-                            top: 8,
-                            right: 8,
-                            child: CircleAvatar(
-                              backgroundColor: Colors.black26,
-                              child: IconButton(
-                                icon: const Icon(Icons.close, size: 22),
-                                color: AppColors.themedColor(context, AppColors.gray900, AppColors.white),
-                                onPressed: widget.onClose,
-                              ),
-                            ),
+                          IconButton(
+                            onPressed: widget.onClose,
+                            icon: Icon(Icons.close, color: textColor),
+                            splashRadius: 20,
                           ),
                         ],
                       ),
+                      const SizedBox(height: 10),
 
-                      // Info & actions scrollable
-                      SingleChildScrollView(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              isScanbox ? "SCANBOX" : "ROI PLANT",
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.themedColor(context, AppColors.green700, AppColors.green500),
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            if (!isScanbox) ...[
-                              _infoRow("Plant", widget.selectedImage["plantName"]),
-                              _infoRow("Plant Health", widget.selectedImage["diseaseName"]),
-                              _infoRow("Image Size", widget.selectedImage["imageSize"]),
-                              const SizedBox(height: 8),
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                constraints: const BoxConstraints(
-                                  maxHeight: 120,
-                                ),
-                                child: SingleChildScrollView(
-                                  child: Text(
-                                    "AI Analysis:\n${widget.selectedImage["generatedDescription"]}Cupidatat Lorem culpa exercitation cillum consectetur. Sint nostrud minim veniam proident do sit nisi dolore. Veniam proident enim ex quis commodo minim Lorem magna incididunt ea exercitation. Occaecat officia veniam adipisicing aliquip culpa ad officia.",
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      height: 1.4,
-                                      color: AppColors.themedColor(context, AppColors.gray800, AppColors.gray300),
+                      Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: AppColors.themedColor(context, AppColors.gray200, AppColors.gray900),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.themedColor(context, AppColors.gray300, AppColors.gray700),
+                          ),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => Scaffold(
+                                    backgroundColor: Colors.black,
+                                    body: Stack(
+                                      children: [
+                                        Center(
+                                          child: InteractiveViewer(
+                                            panEnabled: true,
+                                            minScale: 0.8,
+                                            maxScale: 5.0,
+                                            child: Image.network(
+                                              image["src"],
+                                              fit: BoxFit.contain,
+                                              errorBuilder: (_, __, ___) => const Icon(
+                                                Icons.broken_image,
+                                                color: Colors.white54,
+                                                size: 80,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        Positioned(
+                                          top: 40,
+                                          left: 10,
+                                          child: IconButton(
+                                            icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
+                                            onPressed: () => Navigator.pop(context),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
+                              );
+                            },
+                            child: Image.network(
+                              image["src"],
+                              fit: BoxFit.contain,
+                              width: double.infinity,
+                              height: 220,
+                              errorBuilder: (_, __, ___) => Container(
+                                height: 220,
+                                color: AppColors.gray300,
+                                alignment: Alignment.center,
+                                child: const Icon(Icons.broken_image, size: 40),
                               ),
-                            ] else
-                              _infoRow("Image Size", widget.selectedImage["imageSize"]),
-                          ],
+                            ),
+                          ),
                         ),
                       ),
-                      if (!widget.noDownloadDelete) ...[
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                          child: SizedBox(
-                            width: double.infinity,
-                            child: _actionButton(
-                              icon: Icons.download,
-                              label: "Download",
-                              color: AppColors.green500,
-                              onTap: () => widget.downloadImage(widget.selectedImage["src"]),
-                            ),
+                      const SizedBox(height: 16),
+
+                      Expanded(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _infoRow("Plant", image["plantName"]),
+                              _infoRow("Plant Health", image["diseaseName"]),
+                              _infoRow("Image Size", image["imageSize"]),
+                              const SizedBox(height: 10),
+                              if (!isScanbox)
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.themedColor(context, AppColors.gray100, AppColors.gray700),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    image["generatedDescription"] ?? "No AI analysis available for this image.",
+                                    style: TextStyle(
+                                      color: AppColors.themedColor(context, AppColors.gray800, AppColors.gray300),
+                                      height: 1.4,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                          child: SizedBox(
-                            width: double.infinity,
-                            child: _actionButton(
-                              icon: Icons.delete,
-                              label: "Delete",
-                              color: AppColors.red500,
-                              onTap: () {},
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
+                      const SizedBox(height: 16),
 
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: _actionButton(
-                            icon: Icons.close,
-                            label: "Close",
-                            color: AppColors.themedColor(context, AppColors.gray400, AppColors.gray700),
-                            textColor: AppColors.themedColor(context, AppColors.gray900, AppColors.white),
-                            onTap: widget.onClose,
-                          ),
+                        padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            if (!widget.noDownloadDelete) ...[
+                              TextButton(
+                                onPressed: () => widget.downloadImage(image["src"]),
+                                style: TextButton.styleFrom(
+                                  backgroundColor: AppColors.green500,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: const Text(
+                                  'Download',
+                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              TextButton(
+                                onPressed: () async {
+                                  await deleteImage(image["id"]);
+                                },
+                                style: TextButton.styleFrom(
+                                  backgroundColor: AppColors.red500,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: const Text(
+                                  'Delete',
+                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                            ],
+                            TextButton(
+                              onPressed: widget.onClose,
+                              style: TextButton.styleFrom(
+                                backgroundColor: AppColors.gray500,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              child: const Text(
+                                'Close',
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -242,40 +298,17 @@ class _ViewPictureModalState extends State<ViewPictureModal> with SingleTickerPr
     );
   }
 
-  Widget _infoRow(String label, String value) {
+  Widget _infoRow(String label, String? value) {
+    if (value == null || value.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
           Text("$label: ", style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
           Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontSize: 14),
-              overflow: TextOverflow.ellipsis,
-            ),
+            child: Text(value, style: const TextStyle(fontSize: 14), overflow: TextOverflow.ellipsis),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _actionButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    Color textColor = Colors.white,
-    required VoidCallback onTap,
-  }) {
-    return ElevatedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 18, color: textColor),
-      label: Text(label, style: TextStyle(color: textColor, fontWeight: FontWeight.w600)),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        elevation: 3,
       ),
     );
   }

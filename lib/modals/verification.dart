@@ -63,7 +63,7 @@ class _VerificationCodeModalState extends State<VerificationCodeModal> with Sing
       return const SizedBox.shrink();
     }
 
-    final bgColor = AppColors.themedColor(context, AppColors.white, AppColors.gray900);
+    final bgColor = AppColors.themedColor(context, AppColors.gray200, AppColors.gray900);
     final textColor = AppColors.themedColor(context, AppColors.textLight, AppColors.textDark);
     final borderColor = AppColors.themedColor(context, AppColors.gray300, AppColors.gray700);
 

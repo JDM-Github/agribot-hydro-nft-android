@@ -37,26 +37,95 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
   void toggleForm() => setState(() => isRegister = !isRegister);
 
-  void showTermsModal() {
-    showDialog(
+  Future<void> showTermsModal(BuildContext context) async {
+    await showGeneralDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Terms & Conditions"),
-        content: SingleChildScrollView(
-          child: Text(
-            "Here you can put the full terms and conditions text for AGRIBOT. "
-            "Users must read and accept these before registering.",
+      barrierDismissible: true,
+      barrierLabel: "Terms & Conditions",
+      pageBuilder: (context, anim1, anim2) => const SizedBox.shrink(),
+      transitionBuilder: (context, anim1, anim2, child) {
+        final curved = CurvedAnimation(parent: anim1, curve: Curves.easeInOut);
+
+        return FadeTransition(
+          opacity: curved,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 1),
+              end: Offset.zero,
+            ).animate(curved),
+            child: Center(
+              child: Material(
+                color: AppColors.themedColor(context, AppColors.white, AppColors.gray800),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: MediaQuery.of(context).size.width * 0.85,
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "Terms & Conditions",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.themedColor(
+                            context,
+                            AppColors.textLight,
+                            AppColors.textDark,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.4,
+                        child: SingleChildScrollView(
+                          child: Text(
+                            "Here you can put the full Terms and Conditions text for AGRIBOT.\n\n"
+                            "Users must read and accept these before registering.\n\n"
+                            "1. Data collected through the app will be stored securely.\n"
+                            "2. Users are responsible for maintaining the confidentiality of their credentials.\n"
+                            "3. AGRIBOT reserves the right to modify terms at any time.\n"
+                            "4. Continued use of the app implies acceptance of updated terms.\n\n"
+                            "Please read carefully before proceeding.",
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppColors.themedColor(
+                                context,
+                                AppColors.textLight,
+                                AppColors.textDark,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          style: TextButton.styleFrom(
+                            backgroundColor: AppColors.green500,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text("Close"),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Close"),
-          ),
-        ],
-      ),
+        );
+      },
+      transitionDuration: const Duration(milliseconds: 250),
     );
   }
+
 
   Future<void> sendVerificationCode() async {
     if (fullNameController.text.isEmpty) {
@@ -169,7 +238,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     UserDataStore data = UserDataStore();
     final auth = AuthService();
     final uuid = data.uuid.value != "" ? data.uuid.value : Uuid().v4();
-    final res = await auth.login(this, {'email': emailController.text, 'password': passwordController.text, 'deviceID': uuid});
+    final res =
+        await auth.login(this, {'email': emailController.text, 'password': passwordController.text, 'deviceID': uuid});
     if (res['success'] == true) {
       DefaultConfig newConfig = res['data'];
       final Map<String, Plant> transformedPlants = {for (var plant in newConfig.plants) plant.name: plant};
@@ -250,9 +320,12 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                                   controller: fullNameController,
                                   decoration: InputDecoration(
                                     labelText: "Full Name",
-                                    labelStyle: TextStyle(color: textColor, fontSize: 12),
+                                    labelStyle: TextStyle(color: textColor, fontSize: 14),
+                                    focusedBorder: const UnderlineInputBorder(
+                                      borderSide: BorderSide(color: AppColors.green500, width: 1.5),
+                                    ),
                                   ),
-                                  style: TextStyle(color: textColor, fontSize: 12),
+                                  style: TextStyle(color: textColor, fontSize: 14),
                                   validator: (v) => v!.isEmpty ? "Enter your full name" : null,
                                 ),
                                 const SizedBox(height: 5),
@@ -260,9 +333,12 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                                   controller: prototypeIPController,
                                   decoration: InputDecoration(
                                     labelText: "Prototype IP",
-                                    labelStyle: TextStyle(color: textColor, fontSize: 12),
+                                    labelStyle: TextStyle(color: textColor, fontSize: 14),
+                                    focusedBorder: const UnderlineInputBorder(
+                                      borderSide: BorderSide(color: AppColors.green500, width: 1.5),
+                                    ),
                                   ),
-                                  style: TextStyle(color: textColor, fontSize: 12),
+                                  style: TextStyle(color: textColor, fontSize: 14),
                                   validator: (v) => v!.isEmpty ? "Enter prototype IP" : null,
                                 ),
                                 const SizedBox(height: 5),
@@ -275,9 +351,12 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                             controller: emailController,
                             decoration: InputDecoration(
                               labelText: "Email",
-                              labelStyle: TextStyle(color: textColor, fontSize: 12),
+                              labelStyle: TextStyle(color: textColor, fontSize: 14),
+                              focusedBorder: const UnderlineInputBorder(
+                                borderSide: BorderSide(color: AppColors.green500, width: 1.5),
+                              ),
                             ),
-                            style: TextStyle(color: textColor, fontSize: 12),
+                            style: TextStyle(color: textColor, fontSize: 14),
                             validator: (v) => v!.isEmpty ? "Enter your email" : null,
                           ),
                           const SizedBox(height: 5),
@@ -286,7 +365,10 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                             obscureText: !showPassword,
                             decoration: InputDecoration(
                               labelText: "Password",
-                              labelStyle: TextStyle(color: textColor, fontSize: 12),
+                              labelStyle: TextStyle(color: textColor, fontSize: 14),
+                              focusedBorder: const UnderlineInputBorder(
+                                borderSide: BorderSide(color: AppColors.green500, width: 1.5),
+                              ),
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   showPassword ? Icons.visibility_off : Icons.visibility,
@@ -296,7 +378,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                                 onPressed: () => setState(() => showPassword = !showPassword),
                               ),
                             ),
-                            style: TextStyle(color: textColor, fontSize: 12),
+                            style: TextStyle(color: textColor, fontSize: 14),
                             validator: (v) => v!.isEmpty ? "Enter your password" : null,
                           ),
                           const SizedBox(height: 5),
@@ -309,7 +391,10 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                                   obscureText: !showConfirmPassword,
                                   decoration: InputDecoration(
                                     labelText: "Confirm Password",
-                                    labelStyle: TextStyle(color: textColor, fontSize: 12),
+                                    labelStyle: TextStyle(color: textColor, fontSize: 14),
+                                    focusedBorder: const UnderlineInputBorder(
+                                      borderSide: BorderSide(color: AppColors.green500, width: 1.5),
+                                    ),
                                     suffixIcon: IconButton(
                                       icon: Icon(
                                         showConfirmPassword ? Icons.visibility_off : Icons.visibility,
@@ -319,19 +404,22 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                                       onPressed: () => setState(() => showConfirmPassword = !showConfirmPassword),
                                     ),
                                   ),
-                                  style: TextStyle(color: textColor, fontSize: 12),
+                                  style: TextStyle(color: textColor, fontSize: 14),
                                   validator: (v) => v!.isEmpty ? "Confirm your password" : null,
                                 ),
                                 const SizedBox(height: 5),
                                 Row(
                                   children: [
                                     Checkbox(
-                                        value: acceptedTerms, onChanged: (v) => setState(() => acceptedTerms = v!)),
+                                        activeColor: AppColors.green500,
+                                        checkColor: Colors.white,
+                                        value: acceptedTerms,
+                                        onChanged: (v) => setState(() => acceptedTerms = v!)),
                                     GestureDetector(
-                                      onTap: showTermsModal,
+                                      onTap: () => showTermsModal(context),
                                       child: const Text(
                                         "I agree to the Terms & Conditions",
-                                        style: TextStyle(color: AppColors.green500, fontSize: 10),
+                                        style: TextStyle(color: AppColors.green500, fontSize: 12),
                                       ),
                                     ),
                                   ],
@@ -373,7 +461,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                               isRegister
                                   ? "Already have an account? Log in here"
                                   : "Don't have an account? Register here",
-                              style: const TextStyle(color: AppColors.green500, fontSize: 10),
+                              style: const TextStyle(color: AppColors.green500, fontSize: 12),
                             ),
                           ),
                         ],

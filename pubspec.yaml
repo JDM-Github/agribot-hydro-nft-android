@@ -54,6 +54,11 @@ dependencies:
   circular_menu: ^4.0.0
   animated_radial_menu: ^0.0.1
   flutter_launcher_icons: ^0.14.4
+  flutter_file_dialog: ^3.0.2
+  archive: ^4.0.7
+  image_picker: ^1.2.0
+  flutter_html: ^3.0.0
+  package_info_plus: ^9.0.0
 model_viewer_plus: ^1.8.0
 
 dev_dependencies:

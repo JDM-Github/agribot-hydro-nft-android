@@ -1,7 +1,11 @@
+import 'dart:async';
+
+import 'package:android/handle_request.dart';
 import 'package:android/store/data.dart';
 import 'package:android/utils/colors.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class ProfileHeader extends StatefulWidget {
   final String fullName;
@@ -259,3 +263,93 @@ class _ProfileSectionState extends State<ProfileSection> {
     );
   }
 }
+
+class VersionLabel extends StatefulWidget {
+  final Color textColor;
+
+  const VersionLabel({
+    super.key,
+    required this.textColor,
+  });
+
+  @override
+  State<VersionLabel> createState() => _VersionLabelState();
+}
+
+class _VersionLabelState extends State<VersionLabel> {
+  int _tapCount = 0;
+  Timer? _timer;
+  String _version = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    setState(() {
+      _version = info.version;
+    });
+  }
+
+  void _onTap() {
+    _tapCount++;
+    _timer?.cancel();
+    _timer = Timer(Duration(seconds: 1), () {
+      _tapCount = 0;
+    });
+
+    if (_tapCount >= 5) {
+      _tapCount = 0;
+      _showDevSwitch();
+    }
+  }
+
+  void _showDevSwitch() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Developer Options'),
+          content: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Use Live URL:'),
+              Switch(
+                value: RequestHandler.useLiveUrl,
+                onChanged: (val) {
+                  setState(() {
+                    RequestHandler.useLiveUrl = val;
+                  });
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: GestureDetector(
+          onTap: _onTap,
+          child: Text(
+            _version.isEmpty ? 'Version ...' : 'Version $_version',
+            style: TextStyle(
+              color: widget.textColor.withAlpha(180),
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+

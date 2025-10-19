@@ -476,3 +476,51 @@ class FolderRecord {
 //     },
 //   ),
 // ];
+
+class PlantHistory {
+  final int id;
+  final dynamic src;
+  final dynamic timestamp;
+  final dynamic plantName;
+  final dynamic plantHealth;
+  final dynamic imageSize;
+  final dynamic locationOnCapture;
+  final dynamic generatedDescription;
+
+  PlantHistory({
+    required this.id,
+    this.src,
+    this.timestamp,
+    this.plantName,
+    this.plantHealth,
+    this.imageSize,
+    this.locationOnCapture,
+    this.generatedDescription,
+  });
+
+  factory PlantHistory.fromJson(Map<String, dynamic> json) {
+    return PlantHistory(
+      id: json['id'] ?? 0,
+      src: json['src'],
+      timestamp: json['timestamp'],
+      plantName: json['plantName'],
+      plantHealth: json['plantHealth'],
+      imageSize: json['imageSize'],
+      locationOnCapture: json['locationOnCapture'],
+      generatedDescription: json['generatedDescription'],
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'src': src,
+        'timestamp': timestamp,
+        'plantName': plantName,
+        'plantHealth': plantHealth,
+        'imageSize': imageSize,
+        'locationOnCapture': locationOnCapture,
+        'generatedDescription': generatedDescription,
+      };
+}
+
+typedef PlantHistories = List<PlantHistory>;
