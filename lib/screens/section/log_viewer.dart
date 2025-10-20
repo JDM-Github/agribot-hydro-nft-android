@@ -464,7 +464,7 @@ class _LogViewerScreenState extends State<LogViewerScreen> {
     return Padding(
       padding: const EdgeInsets.only(right: 6),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 2),
         decoration: BoxDecoration(
           color: AppColors.themedColor(ctx, AppColors.white, AppColors.gray700),
           border: Border.all(color: AppColors.green500),

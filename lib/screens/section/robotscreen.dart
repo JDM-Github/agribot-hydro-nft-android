@@ -25,7 +25,6 @@ class RobotScreen extends StatefulWidget {
 }
 
 class _RobotScreenState extends State<RobotScreen> {
-
   Future<void> controlRobot(BuildContext context, String move) async {
     AppSnackBar.loading(
       context,

@@ -56,6 +56,7 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
   int selectedIndex = 0;
   int previousIndex = -1;
   bool _uploading = false;
+  bool _isBusy = false;
 
   bool _fabVisible = true;
   String currentActions = '';
@@ -141,6 +142,7 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
   }
 
   Future<void> syncEverything(bool isForce) async {
+    setState(() => _isBusy = true);
     final plant = plantListKey.currentState;
     final tailscale = tailscaleKey.currentState;
     final folders = folderListKey.currentState;
@@ -180,6 +182,8 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
       AppSnackBar.hide(context, id: "force-sync");
       AppSnackBar.success(context, isForce ? "Force sync data is successful!" : "Sync data is successful!");
     }
+
+    setState(() => _isBusy = false);
   }
 
   @override
@@ -197,7 +201,7 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
       WifiSection(wifi: wifiManager),
       ProfileSection(),
       NotificationScreen(key: notificationKey, hide: () => {setState(() => _fabVisible = true)}),
-      PlantListSection(key: plantListKey, hide: () => {setState(() => _fabVisible = true)}),
+      PlantListSection(key: plantListKey, isBusy: _isBusy, hide: () => {setState(() => _fabVisible = true)}),
       LogViewerScreen(),
       RobotScreen(),
     ];
@@ -291,7 +295,8 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
           }
 
           final isConnected = state["conn"] == true;
-          final hideFab = selectedIndex == 7 ||
+          final hideFab = _isBusy ||
+              selectedIndex == 7 ||
               selectedIndex == 8 ||
               selectedIndex == 1 &&
                   (!state["conn"] || state["robot"] != 0 || state["scan"] || state["rscan"] || state["robotLive"]);
@@ -507,6 +512,11 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
             label: 'Help',
             backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
             labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
+            onTap: () {
+              final tailscale = tailscaleKey.currentState!;
+              setState(() => _fabVisible = false);
+              tailscale.showTutorial.value = true;
+            },
           ),
           SpeedDialChild(
               child: Icon(Icons.sync, color: AppColors.themedColor(context, AppColors.blue500, AppColors.blue700)),
@@ -514,8 +524,10 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
               backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
               labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
               onTap: () async {
+                setState(() => _isBusy = true);
                 final tailscale = tailscaleKey.currentState!;
                 await tailscale.forceSync();
+                setState(() => _isBusy = false);
               }),
           SpeedDialChild(
               child: Icon(Icons.key, color: AppColors.themedColor(context, AppColors.green500, AppColors.green700)),
@@ -523,8 +535,10 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
               backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
               labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
               onTap: () {
+                setState(() => _isBusy = true);
                 setState(() => _fabVisible = false);
                 tailscaleKey.currentState?.showRequest.value = true;
+                setState(() => _isBusy = false);
               }),
           SpeedDialChild(
               child: Icon(Icons.app_registration,
@@ -533,24 +547,11 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
               backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
               labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
               onTap: () {
+                setState(() => _isBusy = true);
                 setState(() => _fabVisible = false);
                 tailscaleKey.currentState?.showManualReg.value = true;
+                setState(() => _isBusy = false);
               }),
-          SpeedDialChild(
-            child:
-                Icon(Icons.computer, color: AppColors.themedColor(context, AppColors.orange500, AppColors.orange700)),
-            label: 'PC Tutorial',
-            backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
-            labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
-            onTap: () => tailscaleKey.currentState?.openTutorial('pc'),
-          ),
-          SpeedDialChild(
-            child: Icon(Icons.android, color: AppColors.themedColor(context, AppColors.purple500, AppColors.purple700)),
-            label: 'Android Tutorial',
-            backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
-            labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
-            onTap: () => tailscaleKey.currentState?.openTutorial('android'),
-          ),
         ];
       case 1:
         return [
@@ -599,6 +600,7 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
             backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
             labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
             onTap: () async {
+              setState(() => _isBusy = true);
               try {
                 if (_uploading) {
                   AppSnackBar.error(context, "Upload already in progress.");
@@ -609,6 +611,7 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
               } finally {
                 _uploading = false;
               }
+              setState(() => _isBusy = false);
             },
           ),
           SpeedDialChild(
@@ -620,10 +623,12 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
             backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
             labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
             onTap: () async {
+              setState(() => _isBusy = true);
               final now = DateTime.now();
               final todaySlug =
                   '${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}${now.year}';
               await _openFolder(todaySlug);
+              setState(() => _isBusy = false);
             },
           ),
         ];
@@ -641,8 +646,10 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
               backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
               labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
               onTap: () async {
+                setState(() => _isBusy = true);
                 final folders = folderListKey.currentState!;
                 await folders.forceSync();
+                setState(() => _isBusy = false);
               }),
           SpeedDialChild(
             child: Icon(Icons.sort_by_alpha,
@@ -675,7 +682,9 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
               backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
               labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
               onTap: () async {
+                setState(() => _isBusy = true);
                 await wifiManager.scanNetworks(context);
+                setState(() => _isBusy = false);
               }),
         ];
       case 5:
@@ -692,26 +701,34 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
               backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
               labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
               onTap: () async {
+                setState(() => _isBusy = true);
                 final notif = notificationKey.currentState!;
                 await notif.forceSync();
+                setState(() => _isBusy = false);
               }),
         ];
       case 6:
         return [
           SpeedDialChild(
-            child: Icon(Icons.help, color: AppColors.themedColor(context, AppColors.gray700, AppColors.gray300)),
-            label: 'Help',
-            backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
-            labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
-          ),
+              child: Icon(Icons.help, color: AppColors.themedColor(context, AppColors.gray700, AppColors.gray300)),
+              label: 'Help',
+              backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
+              labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
+              onTap: () {
+                final plant = plantListKey.currentState!;
+                setState(() => _fabVisible = false);
+                plant.showTutorial.value = true;
+              }),
           SpeedDialChild(
               child: Icon(Icons.sync, color: AppColors.themedColor(context, AppColors.blue500, AppColors.blue700)),
               label: 'Force Sync',
               backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
               labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
               onTap: () async {
+                setState(() => _isBusy = true);
                 final plant = plantListKey.currentState!;
                 await plant.forceSync();
+                setState(() => _isBusy = false);
               }),
           SpeedDialChild(
             child: Icon(Icons.build, color: AppColors.themedColor(context, AppColors.green500, AppColors.green700)),
@@ -847,9 +864,11 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
           icon: Icons.save,
           color: AppColors.green500,
           onTap: () async {
+            setState(() => _isBusy = true);
             await _closeCircularMenu();
             final plant = plantListKey.currentState!;
-            plant.saveConfig(plant);
+            await plant.saveConfig(plant);
+            setState(() => _isBusy = false);
 
             final notif = notificationKey.currentState!;
             notif.updateNotifications();
@@ -860,9 +879,11 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
           icon: Icons.download,
           color: AppColors.blue500,
           onTap: () async {
+            setState(() => _isBusy = true);
             await _closeCircularMenu();
             final plant = plantListKey.currentState!;
-            plant.exportOrShareConfig(plant, plant.config);
+            await plant.exportOrShareConfig(plant, plant.config);
+            setState(() => _isBusy = false);
           },
           badgeText: "Download",
         ),
@@ -870,9 +891,11 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
           icon: Icons.upload,
           color: AppColors.orange500,
           onTap: () async {
+            setState(() => _isBusy = true);
             await _closeCircularMenu();
             final plant = plantListKey.currentState!;
-            plant.uploadConfig(plant, plant.config);
+            await plant.uploadConfig(plant, plant.config);
+            setState(() => _isBusy = false);
           },
           badgeText: "Upload",
         ),
@@ -941,6 +964,10 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
       child: IconButton(
           icon: Icon(icon, color: selectedIndex == index ? Colors.green : Colors.grey),
           onPressed: () {
+            if (_isBusy) {
+              AppSnackBar.error(context, "AGRI-BOT is currently busy...");
+              return;
+            }
             setIndex(index);
             if (index == 4) {
               setState(() => _fabVisible = false);

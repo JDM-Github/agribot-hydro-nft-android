@@ -12,6 +12,7 @@ import 'package:android/modals/confidence.dart';
 import 'package:android/modals/setschedule.dart';
 import 'package:android/modals/setupspray.dart';
 import 'package:android/modals/show_confirmation_modal.dart';
+import 'package:android/modals/tutorialmodal.dart';
 import 'package:android/requests/update.dart';
 import 'package:android/screens/plantdetail.dart';
 import 'package:android/store/data.dart';
@@ -19,7 +20,7 @@ import 'package:android/utils/colors.dart';
 import 'package:android/utils/struct.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-
+import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -27,9 +28,11 @@ import 'package:share_plus/share_plus.dart';
 
 class PlantListSection extends StatefulWidget {
   final Set<void> Function() hide;
+  final bool isBusy;
   const PlantListSection({
     super.key,
     required this.hide,
+    required this.isBusy,
   });
 
   @override
@@ -43,6 +46,8 @@ class PlantListSectionState extends State<PlantListSection> with SingleTickerPro
   ValueNotifier<bool> showConfidenceModal = ValueNotifier<bool>(false);
   ValueNotifier<bool> showModalVersion = ValueNotifier<bool>(false);
   ValueNotifier<bool> compareModal = ValueNotifier<bool>(false);
+  ValueNotifier<bool> showTutorial = ValueNotifier<bool>(false);
+
   String confidenceTitle = "";
   String confidenceModalShownTarget = "";
   double initialValueConfidence = 0.0;
@@ -52,10 +57,24 @@ class PlantListSectionState extends State<PlantListSection> with SingleTickerPro
   String versionModalShownTarget = "";
   List<dynamic> allCurrentVersion = [];
 
+  bool isBusy = false;
+
   late final AnimationController _controller;
   late final List<Animation<Offset>> _animations;
 
   UserDataStore data = UserDataStore();
+
+  @override
+  void didUpdateWidget(covariant PlantListSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.isBusy != widget.isBusy) {
+      setState(() {
+        isBusy = widget.isBusy;
+      });
+    }
+  }
+
   void changeTarget(target) {
     setState(() {
       confidenceModalShownTarget = target;
@@ -136,7 +155,8 @@ class PlantListSectionState extends State<PlantListSection> with SingleTickerPro
   Future<void> forceSync() async {
     AppSnackBar.loading(context, "Force syncing user, models, and plants...", id: "force-sync");
     final result = await CustomUpdater.checkCustomUpdate(
-      state: this, deviceID: data.uuid.value,
+      state: this,
+      deviceID: data.uuid.value,
       willUpdateUser: true,
       willUpdateModels: true,
       willUpdatePlants: true,
@@ -149,7 +169,7 @@ class PlantListSectionState extends State<PlantListSection> with SingleTickerPro
     data.models.value = newConfig.models;
     data.allPlants.value = newConfig.plants;
     data.transformedPlants.value = transformedPlants;
-    await data.saveData(); 
+    await data.saveData();
     if (mounted) {
       AppSnackBar.hide(context, id: "force-sync");
       AppSnackBar.success(context, "Force sync of user, models, and plants is successful!");
@@ -176,7 +196,7 @@ class PlantListSectionState extends State<PlantListSection> with SingleTickerPro
 
       if (result == null || result.files.isEmpty) {
         if (state.mounted) {
-          AppSnackBar.error(context, '❌ No file selected.');
+          AppSnackBar.error(context, 'No file selected.');
         }
         return;
       }
@@ -191,7 +211,7 @@ class PlantListSectionState extends State<PlantListSection> with SingleTickerPro
         jsonString = await file.readAsString();
       } else {
         if (state.mounted) {
-          AppSnackBar.error(context, '❌ Cannot read the file.');
+          AppSnackBar.error(context, 'Cannot read the file.');
         }
         return;
       }
@@ -200,11 +220,11 @@ class PlantListSectionState extends State<PlantListSection> with SingleTickerPro
       config.applyConfig(newConfig);
 
       if (state.mounted) {
-        AppSnackBar.success(context, '✅ Config uploaded successfully!');
+        AppSnackBar.success(context, 'Config uploaded successfully!');
       }
     } catch (e) {
       if (state.mounted) {
-        AppSnackBar.error(context, '❌ Failed to upload config: $e');
+        AppSnackBar.error(context, 'Failed to upload config: $e');
       }
     }
   }
@@ -212,19 +232,24 @@ class PlantListSectionState extends State<PlantListSection> with SingleTickerPro
   Future<void> exportOrShareConfig(State state, Config config) async {
     final jsonString = config.exportConfigJson();
 
-    if (Platform.isAndroid || Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-      String? outputPath = await FilePicker.platform.getDirectoryPath();
-      if (outputPath != null) {
-        final file = File('$outputPath/config.json');
-        await file.writeAsString(jsonString);
-
-        if (state.mounted) {
-          AppSnackBar.success(context, '✅ Config saved at: ${file.path}');
-        }
+    if (Platform.isAndroid) {
+      var status = await Permission.manageExternalStorage.request();
+      if (!status.isGranted) {
+        if (state.mounted) AppSnackBar.error(state.context, 'Permission denied');
+        return;
+      }
+      Directory? downloadsDir;
+      if (await Directory('/storage/emulated/0/Download').exists()) {
+        downloadsDir = Directory('/storage/emulated/0/Download');
       } else {
-        if (state.mounted) {
-          AppSnackBar.error(context, '❌ User canceled directory picking');
-        }
+        downloadsDir = await getExternalStorageDirectory();
+      }
+
+      final file = File('${downloadsDir!.path}/config.json');
+      await file.writeAsString(jsonString);
+
+      if (state.mounted) {
+        AppSnackBar.success(state.context, 'Config saved at: ${file.path}');
       }
     } else if (Platform.isIOS) {
       final directory = await getApplicationDocumentsDirectory();
@@ -240,9 +265,9 @@ class PlantListSectionState extends State<PlantListSection> with SingleTickerPro
 
       if (state.mounted) {
         if (result.status == ShareResultStatus.success) {
-          AppSnackBar.success(context, '✅ Config shared successfully!');
+          AppSnackBar.success(context, 'Config shared successfully!');
         } else {
-          AppSnackBar.error(context, '❌ Sharing canceled or failed');
+          AppSnackBar.error(context, 'Sharing canceled or failed');
         }
       }
     } else {
@@ -281,6 +306,9 @@ class PlantListSectionState extends State<PlantListSection> with SingleTickerPro
       }
 
       if (response['success'] == true) {
+        if (state.mounted) {
+          AppSnackBar.loading(context, "Updating configuration on AGRI-BOT...", id: toastId);
+        }
         await store.saveNotifications(response['notifications']);
         await store.saveConfig(currentConfig);
         final updateRobot = await handler.authFetch(
@@ -289,6 +317,9 @@ class PlantListSectionState extends State<PlantListSection> with SingleTickerPro
           body: {"config": currentConfig},
         );
 
+        if (state.mounted) {
+          AppSnackBar.hide(context, id: toastId);
+        }
         if (updateRobot[0] != true) {
           if (state.mounted) {
             AppSnackBar.error(context, "Configuration saved to cloud, but robot not updated.");
@@ -307,7 +338,6 @@ class PlantListSectionState extends State<PlantListSection> with SingleTickerPro
         AppSnackBar.hide(context, id: toastId);
         AppSnackBar.error(context, "An unexpected error occurred.");
       }
-      debugPrint("saveConfig error: $e");
     }
   }
 
@@ -449,6 +479,10 @@ class PlantListSectionState extends State<PlantListSection> with SingleTickerPro
                                     onTap: isDisabled
                                         ? null
                                         : () {
+                                            if (isBusy) {
+                                              AppSnackBar.info(context, "AGRIBOT is currently busy.");
+                                              return;
+                                            }
                                             final newPlant = data.transformedPlants.value[plant.key];
                                             if (newPlant != null) {
                                               Navigator.push(
@@ -619,6 +653,37 @@ class PlantListSectionState extends State<PlantListSection> with SingleTickerPro
                               },
                             );
                           },
+                        )
+                      : const SizedBox.shrink();
+                },
+              ),
+              ValueListenableBuilder<bool>(
+                valueListenable: showTutorial,
+                builder: (context, value, child) {
+                  return value
+                      ? TutorialModal(
+                          show: value,
+                          onClose: () {
+                            widget.hide();
+                            showTutorial.value = false;
+                          },
+                          tutorials: [
+                            {
+                              "title": "Getting Started",
+                              "url": "https://www.youtube.com/watch?v=1ukSR1GRtMU",
+                              "desc": "Learn the basics of how to use this system effectively."
+                            },
+                            {
+                              "title": "Managing Sprays",
+                              "url": "https://www.youtube.com/watch?v=5VbAwhBBKGA",
+                              "desc": "Understand how to configure and schedule your sprays properly."
+                            },
+                            {
+                              "title": "Troubleshooting",
+                              "url": "https://www.youtube.com/watch?v=VDvM1x4tq20",
+                              "desc": "Find solutions to common issues and performance tips."
+                            },
+                          ],
                         )
                       : const SizedBox.shrink();
                 },

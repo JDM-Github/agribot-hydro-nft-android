@@ -5,6 +5,7 @@ import 'package:android/modals/manualregister.dart';
 import 'package:android/modals/registerdevice.dart';
 import 'package:android/modals/renamedevice.dart';
 import 'package:android/modals/requesttailscale.dart';
+import 'package:android/modals/tutorialmodal.dart';
 import 'package:android/requests/update.dart';
 import 'package:android/store/data.dart';
 import 'package:android/utils/colors.dart';
@@ -33,6 +34,7 @@ class TailscaleSectionState extends State<TailscaleSection> {
   ValueNotifier<bool> showRegister = ValueNotifier(false);
   ValueNotifier<bool> showManualReg = ValueNotifier(false);
   ValueNotifier<bool> renameModal = ValueNotifier(false);
+  ValueNotifier<bool> showTutorial = ValueNotifier(false);
 
   UserDataStore data = UserDataStore();
   String oldName = "";
@@ -600,6 +602,32 @@ class TailscaleSectionState extends State<TailscaleSection> {
                         onRequest: (String deviceName) {
                           _renameDevice(deviceName, oldName);
                         },
+                      )
+                    : const SizedBox.shrink();
+              },
+            ),
+            ValueListenableBuilder<bool>(
+              valueListenable: showTutorial,
+              builder: (context, value, child) {
+                return value
+                    ? TutorialModal(
+                        show: value,
+                        onClose: () {
+                          widget.hide();
+                          showTutorial.value = false;
+                        },
+                        tutorials: [
+                          {
+                            "title": "Android Tutorial",
+                            "url": "https://www.youtube.com/watch?v=1ukSR1GRtMU",
+                            "desc": "Learn the basics of how to use this system effectively."
+                          },
+                          {
+                            "title": "PC Tutorial",
+                            "url": "https://www.youtube.com/watch?v=5VbAwhBBKGA",
+                            "desc": "Understand how to configure and schedule your sprays properly."
+                          },
+                        ],
                       )
                     : const SizedBox.shrink();
               },
