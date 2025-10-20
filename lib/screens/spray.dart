@@ -1,9 +1,11 @@
+import 'package:android/classes/default.dart';
 import 'package:android/classes/snackbar.dart';
 import 'package:android/connection/all_states.dart';
 import 'package:android/connection/connect.dart';
 import 'package:android/connection/socketio.dart';
 import 'package:android/handle_request.dart';
 import 'package:android/modals/show_confirmation_modal.dart';
+import 'package:android/requests/update.dart';
 import 'package:android/screens/registration.dart';
 import 'package:android/screens/section/folderdetail.dart';
 import 'package:android/screens/section/folderscreen.dart';
@@ -46,6 +48,7 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
   final GlobalKey<TailscaleSectionState> tailscaleKey = GlobalKey<TailscaleSectionState>();
   final GlobalKey<PlantListSectionState> plantListKey = GlobalKey<PlantListSectionState>();
   final GlobalKey<FolderSectionState> folderListKey = GlobalKey<FolderSectionState>();
+  final GlobalKey<NotificationScreenState> notificationKey = GlobalKey<NotificationScreenState>();
   OverlayEntry? _currentOverlay;
 
   late List<Widget> screens;
@@ -137,6 +140,48 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
     _currentOverlay = null;
   }
 
+  Future<void> syncEverything(bool isForce) async {
+    final plant = plantListKey.currentState;
+    final tailscale = tailscaleKey.currentState;
+    final folders = folderListKey.currentState;
+    final notif = notificationKey.currentState;
+
+    AppSnackBar.loading(context, isForce ? "Force syncing data..." : "Syncing data...", id: "force-sync");
+
+    final result = await CustomUpdater.forceUpdate(
+      state: this,
+      deviceID: data.uuid.value,
+      isForce: isForce,
+    );
+
+    DefaultConfig newConfig = result['data'];
+    final Map<String, Plant> transformedPlants = {for (var plant in newConfig.plants) plant.name: plant};
+
+    final now = DateTime.now();
+    final currentDaySlug = '${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}${now.year}';
+
+    data.userData.value = newConfig;
+    data.user.value = newConfig.user;
+    data.models.value = newConfig.models;
+    data.notifications.value = newConfig.notifications;
+    data.allPlants.value = newConfig.plants;
+    data.transformedPlants.value = transformedPlants;
+    data.folderLastFetch.value = currentDaySlug;
+    data.folders.value = newConfig.folders;
+    data.tailscales.value = newConfig.tailscaleDevices;
+    await data.saveData();
+
+    plant?.updateConfig();
+    tailscale?.updateTailscale();
+    folders?.updateFolders();
+    notif?.updateNotifications();
+
+    if (mounted) {
+      AppSnackBar.hide(context, id: "force-sync");
+      AppSnackBar.success(context, isForce ? "Force sync data is successful!" : "Sync data is successful!");
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -148,10 +193,10 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
           show: () => {setState(() => _fabVisible = false)},
           hide: () => {setState(() => _fabVisible = true)}),
       LiveFeedScreen(),
-      FolderSection(key: folderListKey, email: data.user.value['email'], records: data.folders.value),
+      FolderSection(key: folderListKey, email: data.user.value['email']),
       WifiSection(wifi: wifiManager),
       ProfileSection(),
-      NotificationScreen(notifications: data.notifications.value, hide: () => {setState(() => _fabVisible = true)}),
+      NotificationScreen(key: notificationKey, hide: () => {setState(() => _fabVisible = true)}),
       PlantListSection(key: plantListKey, hide: () => {setState(() => _fabVisible = true)}),
       LogViewerScreen(),
       RobotScreen(),
@@ -246,8 +291,10 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
           }
 
           final isConnected = state["conn"] == true;
-          final hideFab = selectedIndex == 7 || selectedIndex == 8 || selectedIndex == 1 &&
-              (!state["conn"] || state["robot"] != 0 || state["scan"] || state["rscan"] || state["robotLive"]);
+          final hideFab = selectedIndex == 7 ||
+              selectedIndex == 8 ||
+              selectedIndex == 1 &&
+                  (!state["conn"] || state["robot"] != 0 || state["scan"] || state["rscan"] || state["robotLive"]);
 
           return Scaffold(
             appBar: AppBar(
@@ -301,6 +348,19 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
                 ],
               ),
               actions: [
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () async => await syncEverything(false),
+                    onLongPress: () async => await syncEverything(true),
+                    borderRadius: BorderRadius.circular(24),
+                    splashColor: Colors.white24,
+                    child: const Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Icon(Icons.sync),
+                    ),
+                  ),
+                ),
                 IconButton(
                   icon: const Icon(Icons.brightness_6),
                   onPressed: widget.toggleTheme,
@@ -342,7 +402,7 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
                         backgroundColor: Colors.green,
                         spacing: 10,
                         spaceBetweenChildren: 8,
-                        overlayColor: AppColors.gray900,
+                        overlayColor: AppColors.gray950,
                         animationDuration: const Duration(milliseconds: 300),
                         children: _getSpeedDialChildren(selectedIndex, this.context)),
                   ),
@@ -449,11 +509,14 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
             labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
           ),
           SpeedDialChild(
-            child: Icon(Icons.sync, color: AppColors.themedColor(context, AppColors.blue500, AppColors.blue700)),
-            label: 'Force Sync',
-            backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
-            labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
-          ),
+              child: Icon(Icons.sync, color: AppColors.themedColor(context, AppColors.blue500, AppColors.blue700)),
+              label: 'Force Sync',
+              backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
+              labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
+              onTap: () async {
+                final tailscale = tailscaleKey.currentState!;
+                await tailscale.forceSync();
+              }),
           SpeedDialChild(
               child: Icon(Icons.key, color: AppColors.themedColor(context, AppColors.green500, AppColors.green700)),
               label: 'Request Auth Key',
@@ -573,11 +636,14 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
             labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
           ),
           SpeedDialChild(
-            child: Icon(Icons.sync, color: AppColors.themedColor(context, AppColors.blue500, AppColors.blue700)),
-            label: 'Force Sync',
-            backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
-            labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
-          ),
+              child: Icon(Icons.sync, color: AppColors.themedColor(context, AppColors.blue500, AppColors.blue700)),
+              label: 'Force Sync',
+              backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
+              labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
+              onTap: () async {
+                final folders = folderListKey.currentState!;
+                await folders.forceSync();
+              }),
           SpeedDialChild(
             child: Icon(Icons.sort_by_alpha,
                 color: AppColors.themedColor(context, AppColors.green500, AppColors.green700)),
@@ -604,14 +670,31 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
             labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
           ),
           SpeedDialChild(
-            child: Icon(Icons.wifi, color: AppColors.themedColor(context, AppColors.blue500, AppColors.green500)),
-            label: 'Scan Networks',
+              child: Icon(Icons.wifi, color: AppColors.themedColor(context, AppColors.blue500, AppColors.green500)),
+              label: 'Scan Networks',
+              backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
+              labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
+              onTap: () async {
+                await wifiManager.scanNetworks(context);
+              }),
+        ];
+      case 5:
+        return [
+          SpeedDialChild(
+            child: Icon(Icons.help, color: AppColors.themedColor(context, AppColors.gray700, AppColors.gray300)),
+            label: 'Help',
             backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
             labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
-            onTap: () async {
-              await wifiManager.scanNetworks(context);
-            }
           ),
+          SpeedDialChild(
+              child: Icon(Icons.sync, color: AppColors.themedColor(context, AppColors.blue500, AppColors.blue700)),
+              label: 'Force Sync',
+              backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
+              labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
+              onTap: () async {
+                final notif = notificationKey.currentState!;
+                await notif.forceSync();
+              }),
         ];
       case 6:
         return [
@@ -622,11 +705,14 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
             labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
           ),
           SpeedDialChild(
-            child: Icon(Icons.sync, color: AppColors.themedColor(context, AppColors.blue500, AppColors.blue700)),
-            label: 'Force Sync',
-            backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
-            labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
-          ),
+              child: Icon(Icons.sync, color: AppColors.themedColor(context, AppColors.blue500, AppColors.blue700)),
+              label: 'Force Sync',
+              backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
+              labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
+              onTap: () async {
+                final plant = plantListKey.currentState!;
+                await plant.forceSync();
+              }),
           SpeedDialChild(
             child: Icon(Icons.build, color: AppColors.themedColor(context, AppColors.green500, AppColors.green700)),
             label: 'Model Actions',
@@ -664,12 +750,6 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
           SpeedDialChild(
             child: Icon(Icons.help, color: AppColors.themedColor(context, AppColors.gray700, AppColors.gray300)),
             label: 'Help',
-            backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
-            labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
-          ),
-          SpeedDialChild(
-            child: Icon(Icons.sync, color: AppColors.themedColor(context, AppColors.blue500, AppColors.blue700)),
-            label: 'Force Sync',
             backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
             labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
           ),
@@ -770,6 +850,9 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
             await _closeCircularMenu();
             final plant = plantListKey.currentState!;
             plant.saveConfig(plant);
+
+            final notif = notificationKey.currentState!;
+            notif.updateNotifications();
           },
           badgeText: "Save",
         ),
@@ -920,7 +1003,7 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
   }) {
     return CircularMenuItem(
       icon: icon,
-      color: AppColors.themedColor(context, AppColors.gray300, AppColors.gray700),
+      color: AppColors.themedColor(context, AppColors.gray50, AppColors.gray700),
       iconColor: color,
       onTap: onTap,
       enableBadge: true,

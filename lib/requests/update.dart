@@ -10,10 +10,10 @@ class CustomUpdater {
   static final UserDataStore data = UserDataStore();
   static RequestHandler requestHandler = RequestHandler();
 
-  static Future<Map<String, dynamic>> forceUpdate({required State state, required String deviceID}) async {
+  static Future<Map<String, dynamic>> forceUpdate({required State state, required String deviceID, bool isForce=false}) async {
     DefaultConfig defaultConfig = CustomUpdater.data.userData.value.copyWith();
     try {
-      Map<String, dynamic> body = {'id': defaultConfig.user['id'], 'deviceID': deviceID, 'isForce': false};
+      Map<String, dynamic> body = {'id': defaultConfig.user['id'], 'deviceID': deviceID, 'isForce': isForce};
 
       Map<String, dynamic> updateRes =
           await CustomUpdater.requestHandler.handleRequest('user/check-update', body: body);
@@ -35,7 +35,7 @@ class CustomUpdater {
           maskrcnnsegmentation: data['maskRCNNSegmentation'] ?? defaultConfig.models.maskrcnnsegmentation,
         );
         defaultConfig = DefaultConfig(
-          user: defaultConfig.user,
+          user: data['user'] ?? defaultConfig.user,
           models: newModel,
           plants: plantList,
           notifications: data['notification'] ?? defaultConfig.notifications,
@@ -65,7 +65,7 @@ class CustomUpdater {
   }
 
   static Future<Map<String, dynamic>> checkCustomUpdate({
-    required Map<String, dynamic> userData,
+    required State state,
     required String deviceID,
     bool willUpdateUser = false,
     bool willUpdateModels = false,
@@ -74,19 +74,11 @@ class CustomUpdater {
     bool willUpdateTailscale = false,
     bool willUpdateFolders = false,
   }) async {
-    try {
-      Map<String, dynamic> updatedData = {
-        'user': userData['user'] ?? {},
-        'models': userData['models'] ??
-            {'yoloobjectdetection': [], 'yolostageclassification': [], 'maskrcnnsegmentation': []},
-        'plants': userData['plants'] ?? [],
-        'notifications': userData['notifications'] ?? [],
-        'tailscale_devices': userData['tailscale_devices'] ?? [],
-        'folders': userData['folders'] ?? [],
-      };
+    DefaultConfig defaultConfig = CustomUpdater.data.userData.value.copyWith();
 
+    try {
       Map<String, dynamic> body = {
-        'id': updatedData['user']['id'],
+        'id': defaultConfig.user['id'],
         'deviceID': deviceID,
         'willUpdateUser': willUpdateUser,
         'willUpdateModels': willUpdateModels,
@@ -102,37 +94,58 @@ class CustomUpdater {
       if (updateRes['success'] == true) {
         final data = updateRes['data'];
 
-        if (willUpdateUser && data['user'] != null) {
-          updatedData['user'] = data['user'];
-        }
-        if (willUpdateModels) {
-          updatedData['models'] = {
-            'yoloobjectdetection': data['yoloObjectDetection'] ?? updatedData['models']['yoloobjectdetection'],
-            'yolostageclassification':
-                data['yoloStageClassification'] ?? updatedData['models']['yolostageclassification'],
-            'maskrcnnsegmentation': data['maskRCNNSegmentation'] ?? updatedData['models']['maskrcnnsegmentation'],
-          };
-        }
+        List<Plant> plantList = defaultConfig.plants;
         if (willUpdatePlants && data['plants'] != null) {
-          updatedData['plants'] = data['plants'];
+          plantList = (data['plants'] as List).map<Plant>((p) => Plant.fromJson(Map<String, dynamic>.from(p))).toList();
         }
-        if (willUpdateNotifications && data['notification'] != null) {
-          updatedData['notifications'] = data['notification'];
-        }
-        if (willUpdateTailscale && data['tailscaleDevices'] != null) {
-          updatedData['tailscale_devices'] = data['tailscaleDevices'];
-        }
+
+        List<FolderRecord> folderList = defaultConfig.folders;
         if (willUpdateFolders && data['folders'] != null) {
-          updatedData['folders'] = data['folders'];
+          folderList = (data['folders'] as List)
+              .map<FolderRecord>((item) => FolderRecord.fromJson(Map<String, dynamic>.from(item)))
+              .toList();
+        }
+
+        Models newModel = defaultConfig.models;
+        if (willUpdateModels) {
+          newModel = Models(
+            yoloobjectdetection: data['yoloObjectDetection'] ?? defaultConfig.models.yoloobjectdetection,
+            yolostageclassification: data['yoloStageClassification'] ?? defaultConfig.models.yolostageclassification,
+            maskrcnnsegmentation: data['maskRCNNSegmentation'] ?? defaultConfig.models.maskrcnnsegmentation,
+          );
+        }
+
+        defaultConfig = DefaultConfig(
+          user: willUpdateUser && data['user'] != null ? data['user'] : defaultConfig.user,
+          models: newModel,
+          plants: plantList,
+          notifications: willUpdateNotifications && data['notification'] != null
+              ? data['notification']
+              : defaultConfig.notifications,
+          tailscaleDevices: willUpdateTailscale && data['tailscaleDevices'] != null
+              ? data['tailscaleDevices']
+              : defaultConfig.tailscaleDevices,
+          folders: folderList,
+        );
+
+        if (state.mounted) {
+          AppSnackBar.hide(state.context, id: "update");
+          AppSnackBar.success(state.context, 'Custom update applied successfully.');
+        }
+      } else {
+        if (state.mounted) {
+          AppSnackBar.hide(state.context, id: "update");
+          AppSnackBar.info(state.context, 'No custom updates available.');
         }
       }
 
-      return {'success': true, 'data': updatedData};
+      return {'success': true, 'data': defaultConfig};
     } catch (err) {
       if (kDebugMode) {
         print('Error in checkCustomUpdate: $err');
       }
-      return {'success': false, 'message': 'Internal server error.'};
+      return {'success': false, 'data': defaultConfig};
     }
   }
+
 }

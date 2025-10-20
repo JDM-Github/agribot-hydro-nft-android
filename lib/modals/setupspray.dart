@@ -67,7 +67,6 @@ class _SetupSprayModalState extends State<SetupSprayModal> with SingleTickerProv
       opacity: _opacity,
       child: Stack(
         children: [
-          // Background overlay
           GestureDetector(
             onTap: widget.onClose,
             child: Container(
@@ -77,7 +76,6 @@ class _SetupSprayModalState extends State<SetupSprayModal> with SingleTickerProv
             ),
           ),
 
-          // Sliding modal
           SlideTransition(
             position: _slide,
             child: Align(
@@ -92,7 +90,6 @@ class _SetupSprayModalState extends State<SetupSprayModal> with SingleTickerProv
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                   child: Column(
                     children: [
-                      // Header
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -113,7 +110,6 @@ class _SetupSprayModalState extends State<SetupSprayModal> with SingleTickerProv
                       ),
                       const SizedBox(height: 12),
 
-                      // Spray list
                       Expanded(
                         child: Scrollbar(
                           thumbVisibility: true,
@@ -134,7 +130,6 @@ class _SetupSprayModalState extends State<SetupSprayModal> with SingleTickerProv
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      // Spray name row
                                       Row(
                                         children: [
                                           Switch(
@@ -174,7 +169,6 @@ class _SetupSprayModalState extends State<SetupSprayModal> with SingleTickerProv
 
                                       const SizedBox(height: 10),
 
-                                      // Duration row
                                       Row(
                                         children: [
                                           const Text(
@@ -203,7 +197,6 @@ class _SetupSprayModalState extends State<SetupSprayModal> with SingleTickerProv
                       ),
                       const SizedBox(height: 16),
 
-                      // Action buttons
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
@@ -223,6 +216,7 @@ class _SetupSprayModalState extends State<SetupSprayModal> with SingleTickerProv
                           const SizedBox(width: 12),
                           TextButton(
                             onPressed: () {
+                              widget.onClose();
                               widget.sprays.spray = List.from(_tempSpray.spray);
                               widget.sprays.active = List.from(_tempSpray.active);
                               widget.sprays.duration = List.from(_tempSpray.duration);

@@ -1,15 +1,13 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
-// RESTAPI
 class RequestHandler {
 
   static bool useLiveUrl = false; 
-
   String get baseUrl {
     return RequestHandler.useLiveUrl
         ? 'https://agribot-hydro-nft-admin.netlify.app'
-        : 'https://c204d49e--agribot-hydro-nft-admin.netlify.live';
+        : 'https://agribot-subdomain--agribot-hydro-nft-admin.netlify.live';
   }
 
   Future<Map<String, dynamic>> handleRequest(

@@ -78,7 +78,7 @@ class _NotificationDetailModalState extends State<NotificationDetailModal> with 
   Widget build(BuildContext context) {
     if (!widget.show && _controller.status == AnimationStatus.dismissed) return const SizedBox.shrink();
 
-    final bgColor = AppColors.themedColor(context, AppColors.white, AppColors.gray800);
+    final bgColor = AppColors.themedColor(context, AppColors.gray100, AppColors.gray800);
     final textColor = AppColors.themedColor(context, AppColors.textLight, AppColors.textDark);
     final footerTextColor = AppColors.themedColor(context, AppColors.gray600, AppColors.gray400);
 

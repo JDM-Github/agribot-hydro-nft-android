@@ -402,38 +402,36 @@ class _WifiSectionState extends State<WifiSection> {
             valueListenable: widget.wifi.wifiList,
             builder: (context, wifiList, _) {
               if (wifiList.isEmpty) {
-                return Expanded(
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'No WiFi networks found.',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppColors.themedColor(
-                              context,
-                              AppColors.gray600,
-                              AppColors.gray400,
-                            ),
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'No WiFi networks found.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: AppColors.themedColor(
+                            context,
+                            AppColors.gray600,
+                            AppColors.gray400,
                           ),
-                          textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Click "Scan Networks" to refresh.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.themedColor(
-                              context,
-                              AppColors.gray500,
-                              AppColors.gray500,
-                            ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Click "Scan Networks" to refresh.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.themedColor(
+                            context,
+                            AppColors.gray500,
+                            AppColors.gray500,
                           ),
-                          textAlign: TextAlign.center,
                         ),
-                      ],
-                    ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ),
                 );
               }

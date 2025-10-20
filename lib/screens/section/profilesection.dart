@@ -5,7 +5,6 @@ import 'package:android/store/data.dart';
 import 'package:android/utils/colors.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
 class ProfileHeader extends StatefulWidget {
   final String fullName;
@@ -52,7 +51,6 @@ class _ProfileHeaderState extends State<ProfileHeader> with SingleTickerProvider
     return Stack(
       alignment: Alignment.center,
       children: [
-        
         Align(
           alignment: Alignment.topCenter,
           child: SizedBox(
@@ -66,7 +64,6 @@ class _ProfileHeaderState extends State<ProfileHeader> with SingleTickerProvider
             ),
           ),
         ),
-        
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Column(
@@ -225,38 +222,36 @@ class _ProfileSectionState extends State<ProfileSection> {
     return Scaffold(
       backgroundColor: bgColor,
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Stack(
           children: [
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.themedColor(context, AppColors.gray50, AppColors.gray800),
-                borderRadius: BorderRadius.circular(70),
-              ),
-              child: Column(
-                children: [
-                  ProfileHeader(
-                    fullName: data.user.value['fullName'] ?? data.user.value['prototypeID'],
-                    email: data.user.value['email'],
-                  ),
-                  const SizedBox(height: 5),
-                  const UserInfoSection(),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: Text(
-                  "Version 5.12.2",
-                  style: TextStyle(
-                    color: textColor.withAlpha(180),
-                    fontSize: 12,
-                  ),
+            Positioned(
+                top: 0,
+                left: 0,
+                width: MediaQuery.of(context).size.width,
+                height: 300,
+                child: Container(
+                  color: AppColors.themedColor(context, AppColors.gray50, AppColors.gray800),
+                )),
+            Column(children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.themedColor(context, AppColors.gray50, AppColors.gray800),
+                  borderRadius: BorderRadius.circular(70),
+                ),
+                child: Column(
+                  children: [
+                    ProfileHeader(
+                      fullName: data.user.value['fullName'] ?? data.user.value['prototypeID'],
+                      email: data.user.value['email'],
+                    ),
+                    const SizedBox(height: 5),
+                    const UserInfoSection(),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 10),
+              VersionLabel(textColor: textColor),
+              const SizedBox(height: 10),
+            ]),
           ],
         ),
       ),
@@ -279,25 +274,12 @@ class VersionLabel extends StatefulWidget {
 class _VersionLabelState extends State<VersionLabel> {
   int _tapCount = 0;
   Timer? _timer;
-  String _version = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _loadVersion();
-  }
-
-  Future<void> _loadVersion() async {
-    final info = await PackageInfo.fromPlatform();
-    setState(() {
-      _version = info.version;
-    });
-  }
+  final String _version = '2.0.0';
 
   void _onTap() {
     _tapCount++;
     _timer?.cancel();
-    _timer = Timer(Duration(seconds: 1), () {
+    _timer = Timer(const Duration(seconds: 1), () {
       _tapCount = 0;
     });
 
@@ -307,29 +289,129 @@ class _VersionLabelState extends State<VersionLabel> {
     }
   }
 
-  void _showDevSwitch() {
-    showDialog(
+  Future<void> _showDevSwitch() async {
+    await showGeneralDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Developer Options'),
-          content: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Use Live URL:'),
-              Switch(
-                value: RequestHandler.useLiveUrl,
-                onChanged: (val) {
-                  setState(() {
-                    RequestHandler.useLiveUrl = val;
-                  });
-                  Navigator.pop(context);
-                },
+      barrierDismissible: false,
+      barrierLabel: "Developer Options",
+      pageBuilder: (context, anim1, anim2) => const SizedBox.shrink(),
+      transitionBuilder: (context, anim1, anim2, child) {
+        final curved = CurvedAnimation(parent: anim1, curve: Curves.easeInOut);
+        return FadeTransition(
+          opacity: curved,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 1),
+              end: Offset.zero,
+            ).animate(curved),
+            child: Center(
+              child: Material(
+                color: Colors.transparent,
+                child: StatefulBuilder(
+                  builder: (context, setModalState) {
+                    return Container(
+                      width: MediaQuery.of(context).size.width * 0.85,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.themedColor(
+                          context,
+                          AppColors.white,
+                          AppColors.gray800,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                "Developer Options",
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.themedColor(
+                                    context,
+                                    AppColors.textLight,
+                                    AppColors.textDark,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                icon: Icon(
+                                  Icons.close,
+                                  color: AppColors.themedColor(
+                                    context,
+                                    AppColors.textLight,
+                                    AppColors.textDark,
+                                  ),
+                                ),
+                                onPressed: () => Navigator.of(context).pop(),
+                              ),
+                            ],
+                          ),
+                          Divider(
+                            color: AppColors.themedColor(
+                              context,
+                              AppColors.gray300,
+                              AppColors.gray600,
+                            ),
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                "Use Live URL:",
+                                style: TextStyle(
+                                  color: AppColors.themedColor(
+                                    context,
+                                    AppColors.textLight,
+                                    AppColors.textDark,
+                                  ),
+                                ),
+                              ),
+                              Switch(
+                                value: RequestHandler.useLiveUrl,
+                                activeColor: AppColors.green500,
+                                onChanged: (val) {
+                                  setModalState(() {
+                                    RequestHandler.useLiveUrl = val;
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4.0, right: 4.0, bottom: 12.0),
+                            child: Text(
+                              RequestHandler.useLiveUrl
+                                  ? "Currently using the *LIVE* server:\nhttps://agribot-hydro-nft-admin.netlify.app"
+                                  : "Currently using the *TEST* (subdomain) server:\nhttps://agribot-subdomain--agribot-hydro-nft-admin.netlify.live",
+                              style: TextStyle(
+                                fontSize: 12,
+                                height: 1.4,
+                                color: AppColors.themedColor(
+                                  context,
+                                  AppColors.textLight.withAlpha(200),
+                                  AppColors.textDark.withAlpha(200),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                        ],
+                      ),
+                    );
+                  },
+                ),
               ),
-            ],
+            ),
           ),
         );
       },
+      transitionDuration: const Duration(milliseconds: 250),
     );
   }
 
@@ -352,4 +434,3 @@ class _VersionLabelState extends State<VersionLabel> {
     );
   }
 }
-

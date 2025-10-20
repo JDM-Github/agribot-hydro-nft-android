@@ -9,7 +9,7 @@ class AuthService {
   final UserDataStore data = UserDataStore();
   final RequestHandler handler;
 
-  AuthService({bool development = false}) : handler = RequestHandler(development: development);
+  AuthService({bool development = false}) : handler = RequestHandler();
 
   Future<Map<String, dynamic>> login(
     State state,

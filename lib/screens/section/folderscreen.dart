@@ -1,3 +1,7 @@
+import 'package:android/classes/default.dart';
+import 'package:android/classes/snackbar.dart';
+import 'package:android/requests/update.dart';
+import 'package:android/store/data.dart';
 import 'package:android/widgets/animated_folder_grid_view.dart';
 import 'package:flutter/material.dart';
 import 'package:android/utils/colors.dart';
@@ -6,9 +10,8 @@ import 'package:intl/intl.dart';
 
 class FolderSection extends StatefulWidget {
   final String email;
-  final List<FolderRecord> records;
 
-  const FolderSection({super.key, required this.records, required this.email});
+  const FolderSection({super.key, required this.email});
 
   @override
   State<FolderSection> createState() => FolderSectionState();
@@ -20,18 +23,43 @@ class FolderSectionState extends State<FolderSection> {
   String sortOrder = "desc";
   int currentPage = 1;
   int itemsPerPage = 12;
+  UserDataStore data = UserDataStore();
+
+  Future<void> forceSync() async {
+    AppSnackBar.loading(context, "Force syncing records folder...", id: "force-sync");
+    final result = await CustomUpdater.checkCustomUpdate(
+      state: this,
+      deviceID: data.uuid.value,
+      willUpdateFolders: true,
+    );
+    DefaultConfig newConfig = result['data'];
+    final now = DateTime.now();
+    final currentDaySlug = '${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}${now.year}';
+    data.folderLastFetch.value = currentDaySlug;
+    data.folders.value = newConfig.folders;
+    await data.saveData();
+    if (mounted) {
+      AppSnackBar.hide(context, id: "force-sync");
+      AppSnackBar.success(context, "Force sync of records folder is successful!");
+    }
+    updateFolders();
+  }
+
+  void updateFolders() {
+    _filterRecords(searchQuery);
+  }
 
   @override
   void initState() {
     super.initState();
-    filteredRecords = List.from(widget.records);
+    filteredRecords = List.from(data.folders.value);
     sortRecords();
   }
 
   void _filterRecords(String query) {
     setState(() {
       searchQuery = query.toLowerCase();
-      filteredRecords = widget.records.where((record) {
+      filteredRecords = data.folders.value.where((record) {
         return record.name.toLowerCase().contains(searchQuery) || record.date.toLowerCase().contains(searchQuery);
       }).toList();
       currentPage = 1;

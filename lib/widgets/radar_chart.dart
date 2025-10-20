@@ -51,7 +51,7 @@ class VersionRadarChart extends StatelessWidget {
         return (val != null && val >= 0) ? val * 100 : 0.0;
       }).toList();
 
-      final baseColor = _defaultColors[i % _defaultColors.length].withOpacity(0.8);
+      final baseColor = _defaultColors[i % _defaultColors.length].withAlpha(220);
 
       return RadarDataSet(
         fillColor: baseColor.withAlpha(70),
@@ -66,12 +66,12 @@ class VersionRadarChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
       elevation: 4,
       color: AppColors.themedColor(
         context,
         Colors.white,
-        AppColors.gray900,
+        AppColors.gray800,
       ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
@@ -127,26 +127,11 @@ class VersionRadarChart extends StatelessWidget {
                     AppColors.gray100,
                     AppColors.gray900,
                   ),
-                  tickBorderData: const BorderSide(color: AppColors.gray600),
+                  tickBorderData: BorderSide(color: AppColors.themedColor(context, AppColors.gray300, AppColors.gray800)),
                   getTitle: (index, angle) {
                     final label = VersionRadarChart.metricLabels[VersionRadarChart.metricKeys[index]]!;
                     return RadarChartTitle(text: label, angle: angle);
                   },
-                  // radarTouchData: RadarTouchData(
-                  //   enabled: true,
-                  //   touchCallback: (event, response) {
-                  //     if (response != null && response.touchedSpot != null) {
-                  //       final touchedEntry = response.touchedSpot!.touchedRadarEntry;
-                  //       final value = touchedEntry.value;
-                  //       ScaffoldMessenger.of(context).showSnackBar(
-                  //         SnackBar(
-                  //           content: Text('Touched value: ${value.toStringAsFixed(2)}%'),
-                  //           duration: const Duration(milliseconds: 800),
-                  //         ),
-                  //       );
-                  //     }
-                  //   },
-                  // ),
 
                 ),
                 duration: const Duration(milliseconds: 800),

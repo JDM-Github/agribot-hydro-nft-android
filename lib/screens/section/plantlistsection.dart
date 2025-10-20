@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:android/classes/block.dart';
 import 'package:android/classes/config.dart';
+import 'package:android/classes/default.dart';
 import 'package:android/classes/snackbar.dart';
 import 'package:android/connection/all_states.dart';
 import 'package:android/handle_request.dart';
@@ -11,6 +12,7 @@ import 'package:android/modals/confidence.dart';
 import 'package:android/modals/setschedule.dart';
 import 'package:android/modals/setupspray.dart';
 import 'package:android/modals/show_confirmation_modal.dart';
+import 'package:android/requests/update.dart';
 import 'package:android/screens/plantdetail.dart';
 import 'package:android/store/data.dart';
 import 'package:android/utils/colors.dart';
@@ -129,6 +131,40 @@ class PlantListSectionState extends State<PlantListSection> with SingleTickerPro
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> forceSync() async {
+    AppSnackBar.loading(context, "Force syncing user, models, and plants...", id: "force-sync");
+    final result = await CustomUpdater.checkCustomUpdate(
+      state: this, deviceID: data.uuid.value,
+      willUpdateUser: true,
+      willUpdateModels: true,
+      willUpdatePlants: true,
+    );
+    DefaultConfig newConfig = result['data'];
+    final Map<String, Plant> transformedPlants = {for (var plant in newConfig.plants) plant.name: plant};
+
+    data.userData.value = newConfig;
+    data.user.value = newConfig.user;
+    data.models.value = newConfig.models;
+    data.allPlants.value = newConfig.plants;
+    data.transformedPlants.value = transformedPlants;
+    await data.saveData(); 
+    if (mounted) {
+      AppSnackBar.hide(context, id: "force-sync");
+      AppSnackBar.success(context, "Force sync of user, models, and plants is successful!");
+    }
+    updateConfig();
+  }
+
+  void updateConfig() {
+    final userConfig = data.user.value['config'];
+    if (userConfig == null || (userConfig is Map && userConfig.isEmpty)) {
+      configType = ConfigType.defaultConfigType();
+    } else {
+      configType = ConfigType.fromJson(userConfig);
+    }
+    config.applyConfig(configType);
   }
 
   Future<void> uploadConfig(State state, Config config) async {
@@ -421,6 +457,7 @@ class PlantListSectionState extends State<PlantListSection> with SingleTickerPro
                                                   builder: (context) => PlantDetailScreen(
                                                     plant: newPlant,
                                                     detectedPlant: plant,
+                                                    sprays: config.sprays.value,
                                                     onUpdate: (updatedPlant) {
                                                       final list =
                                                           List<DetectedPlant>.from(config.detectedPlants.value);

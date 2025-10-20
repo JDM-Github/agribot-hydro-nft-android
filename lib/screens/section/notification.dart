@@ -1,21 +1,22 @@
+import 'package:android/classes/default.dart';
 import 'package:android/classes/snackbar.dart';
 import 'package:android/handle_request.dart';
 import 'package:android/modals/notification_detail.dart';
+import 'package:android/requests/update.dart';
 import 'package:android/store/data.dart';
 import 'package:flutter/material.dart';
 import 'package:android/utils/colors.dart';
 
 class NotificationScreen extends StatefulWidget {
-  final List<dynamic> notifications;
   final Set<void> Function() hide;
 
-  const NotificationScreen({super.key, required this.notifications, required this.hide});
+  const NotificationScreen({super.key, required this.hide});
 
   @override
-  State<NotificationScreen> createState() => _NotificationScreenState();
+  State<NotificationScreen> createState() => NotificationScreenState();
 }
 
-class _NotificationScreenState extends State<NotificationScreen> with SingleTickerProviderStateMixin {
+class NotificationScreenState extends State<NotificationScreen> with SingleTickerProviderStateMixin {
   List<dynamic> filteredNotifications = [];
   dynamic targetNotif;
   int selectedIndex = 0;
@@ -26,10 +27,31 @@ class _NotificationScreenState extends State<NotificationScreen> with SingleTick
   late final AnimationController _controller;
   late final List<Animation<Offset>> _animations;
 
+  Future<void> forceSync() async {
+    AppSnackBar.loading(context, "Force syncing notifications...", id: "force-sync");
+    final result = await CustomUpdater.checkCustomUpdate(
+      state: this,
+      deviceID: data.uuid.value,
+      willUpdateNotifications: true,
+    );
+    DefaultConfig newConfig = result['data'];
+    data.notifications.value = newConfig.notifications;
+    await data.saveData();
+    if (mounted) {
+      AppSnackBar.hide(context, id: "force-sync");
+      AppSnackBar.success(context, "Force sync of notifications is successful!");
+    }
+    updateNotifications();
+  }
+
+  void updateNotifications() {
+    filterNotifications(searchQuery);
+  }
+
   @override
   void initState() {
     super.initState();
-    filteredNotifications = List.from(widget.notifications);
+    filteredNotifications = List.from(data.notifications.value);
     _sortNotifications("Newest");
 
     _controller = AnimationController(
@@ -54,7 +76,7 @@ class _NotificationScreenState extends State<NotificationScreen> with SingleTick
   void filterNotifications(String query) {
     setState(() {
       searchQuery = query.toLowerCase();
-      filteredNotifications = widget.notifications.where((notif) {
+      filteredNotifications = data.notifications.value.where((notif) {
         return notif["title"].toString().toLowerCase().contains(searchQuery) ||
             notif["message"].toString().toLowerCase().contains(searchQuery);
       }).toList();

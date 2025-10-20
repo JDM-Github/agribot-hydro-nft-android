@@ -90,12 +90,28 @@ class _SetScheduleModalState extends State<SetScheduleModal> with SingleTickerPr
       return parts[0] * 60 + parts[1];
     }
 
+    int? prevEnd;
     for (var i = 0; i < runs.length; i++) {
-      final s = toMinutes(runs[i]['time']!);
-      final e = toMinutes(runs[i]['upto']!);
+      final timeStr = runs[i]['time'];
+      final uptoStr = runs[i]['upto'];
+
+      if (timeStr == null || uptoStr == null) {
+        errors.add('Run ${i + 1}: Missing time or end time.');
+        continue;
+      }
+
+      final s = toMinutes(timeStr);
+      final e = toMinutes(uptoStr);
+
       if (s < 180 || s > 1320) errors.add('Run ${i + 1}: Start must be 03:00–22:00');
       if (e < 180 || e > 1320) errors.add('Run ${i + 1}: End must be 03:00–22:00');
       if (e <= s) errors.add('Run ${i + 1}: End must be after start');
+
+      if (prevEnd != null && s < prevEnd + 5) {
+        errors.add('Run ${i + 1}: Must start at least 5 minutes after previous run ends.');
+      }
+
+      prevEnd = e;
     }
 
     final sorted = runs
@@ -103,17 +119,27 @@ class _SetScheduleModalState extends State<SetScheduleModal> with SingleTickerPr
         .entries
         .map((e) => {'i': e.key, 'start': toMinutes(e.value['time']!), 'end': toMinutes(e.value['upto']!)})
         .toList()
-      ..sort((a, b) => a['start']!.compareTo(b['start']!));
+      ..sort((a, b) => (a['start'] as int).compareTo(b['start'] as int));
 
     for (var i = 1; i < sorted.length; i++) {
       final prev = sorted[i - 1], curr = sorted[i];
-      if (curr['start'] == prev['start']) errors.add('Runs ${prev['i']! + 1} & ${curr['i']! + 1} have same start');
-      if (curr['start']! < prev['end']!) errors.add('Runs ${prev['i']! + 1} & ${curr['i']! + 1} overlap');
+      final prevStart = prev['start'] as int;
+      final prevEndSorted = prev['end'] as int;
+      final currStart = curr['start'] as int;
+
+      if (currStart == prevStart) {
+        errors.add('Runs ${prev['i']! + 1} & ${curr['i']! + 1} have same start');
+      }
+
+      if (currStart < prevEndSorted + 5) {
+        errors.add('Runs ${prev['i']! + 1} & ${curr['i']! + 1} overlap or have less than 5 minutes gap');
+      }
     }
 
     setState(() {});
 
     if (errors.isEmpty) {
+      widget.onClose();
       widget.schedule.days = List.from(_tempSchedule.days);
       widget.schedule.frequency = _tempSchedule.frequency;
       widget.schedule.runs = List.from(_tempSchedule.runs);

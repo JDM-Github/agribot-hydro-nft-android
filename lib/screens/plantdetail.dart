@@ -1,4 +1,5 @@
 import 'package:android/classes/snackbar.dart';
+import 'package:android/store/data.dart';
 import 'package:android/utils/dialog_utils.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -11,13 +12,13 @@ class PlantDetailScreen extends StatefulWidget {
   final DetectedPlant detectedPlant;
   final void Function(DetectedPlant) onUpdate;
   final void Function(String) onRemove;
-
+  final Spray sprays;
   const PlantDetailScreen({
     super.key,
     required this.plant,
     required this.detectedPlant,
     required this.onUpdate,
-    required this.onRemove,
+    required this.onRemove, required this.sprays,
   });
 
   @override
@@ -33,6 +34,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
 
   late DetectedPlant _tempDetectedPlant;
   late DetectedPlant detectedPlant;
+  UserDataStore data = UserDataStore();
 
   @override
   void initState() {
@@ -79,6 +81,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
         offset: Offset(0, 0),
         child: SpeedDial(
             icon: Icons.add,
+            foregroundColor: Colors.white,
             activeIcon: Icons.close,
             backgroundColor: Colors.green,
             spacing: 10,
@@ -367,7 +370,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                                 children: [
                                   _buildSlotButton("None", disease.name, reset: true),
                                   for (int i = 0; i < 4; i++)
-                                    _buildSlotButton("Bind to Slot ${i + 1}", disease.name, index: i),
+                                    _buildSlotButton("Bind to ${widget.sprays.spray[i]}", disease.name, index: i),
                                 ],
                               ),
                             ],

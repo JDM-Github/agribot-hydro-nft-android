@@ -1,9 +1,11 @@
+import 'package:android/classes/default.dart';
 import 'package:android/classes/snackbar.dart';
 import 'package:android/handle_request.dart';
 import 'package:android/modals/manualregister.dart';
 import 'package:android/modals/registerdevice.dart';
 import 'package:android/modals/renamedevice.dart';
 import 'package:android/modals/requesttailscale.dart';
+import 'package:android/requests/update.dart';
 import 'package:android/store/data.dart';
 import 'package:android/utils/colors.dart';
 import 'package:flutter/material.dart';
@@ -41,6 +43,27 @@ class TailscaleSectionState extends State<TailscaleSection> {
     setState(() {
       _tsDevices = data.tailscales.value;
     });
+  }
+
+  Future<void> forceSync() async {
+    AppSnackBar.loading(context, "Force syncing tailscale devices...", id: "force-sync");
+    final result = await CustomUpdater.checkCustomUpdate(
+      state: this,
+      deviceID: data.uuid.value,
+      willUpdateTailscale: true,
+    );
+    DefaultConfig newConfig = result['data'];
+    data.tailscales.value = newConfig.tailscaleDevices;
+    await data.saveData();
+    if (mounted) {
+      AppSnackBar.hide(context, id: "force-sync");
+      AppSnackBar.success(context, "Force sync of tailscale devices is successful!");
+    }
+    updateTailscale();
+  }
+
+  void updateTailscale() {
+    _tsDevices = data.tailscales.value;
   }
 
   Future<void> fetchDevices() async {
