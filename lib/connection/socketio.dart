@@ -6,10 +6,14 @@ class SocketService {
   static void init([String url = 'https://agribot-pi4.tail13df43.ts.net:8000']) {
     if (_socket != null) return;
 
-    _socket = IO.io(url, <String, dynamic>{
-      'transports': ['websocket'],
-      'autoConnect': false,
-    });
+    _socket = IO.io(
+      url,
+      IO.OptionBuilder()
+          .setTransports(['websocket'])
+          .disableAutoConnect()
+          .disableReconnection()
+          .build(),
+    );
   }
 
   static IO.Socket? get socket => _socket;

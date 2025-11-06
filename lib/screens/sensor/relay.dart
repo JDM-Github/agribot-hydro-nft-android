@@ -20,7 +20,8 @@ class SprayControls extends StatefulWidget {
 
 class _SprayControlsState extends State<SprayControls> {
   bool triggerMode = false;
-final List<int> allClickedTrigger = [];
+  final List<int> allClickedTrigger = [];
+  final Set<int> toggledSprays = {};
 
   Future<void> handleActivateSpray(int num) async {
     if (allClickedTrigger.contains(num)) return;
@@ -76,11 +77,7 @@ final List<int> allClickedTrigger = [];
 
     final String state = turnOn ? 'on' : 'off';
     final String toastId = 'relay-$num';
-    AppSnackBar.loading(
-      context,
-      'Turning $state Spray $num...',
-      id: toastId,
-    );
+    AppSnackBar.loading(context, 'Turning $state Spray $num...', id: toastId);
 
     try {
       final handler = RequestHandler();
@@ -134,6 +131,7 @@ final List<int> allClickedTrigger = [];
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // === Header ===
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -159,6 +157,7 @@ final List<int> allClickedTrigger = [];
           ),
           const SizedBox(height: 12),
 
+          // === Spray Buttons ===
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -172,58 +171,60 @@ final List<int> allClickedTrigger = [];
             itemBuilder: (context, index) {
               final num = index + 1;
               final isDisabled = widget.isRobotRunning || allClickedTrigger.contains(num);
-              final isActive = allClickedTrigger.contains(num);
+              final isToggled = toggledSprays.contains(num);
+              final label = triggerMode ? 'TRIGGER $num' : 'TOGGLE $num';
+              final color = triggerMode
+                  ? AppColors.blue500
+                  : isToggled
+                      ? AppColors.green500
+                      : AppColors.gray500;
 
-              final label = triggerMode ? 'TRIGGER $num' : 'HOLD $num';
-              final color = AppColors.blue500;
-
-              return Listener(
-                onPointerUp: triggerMode || isDisabled ? null : (_) => handleToggleSpray(num, false),
-                onPointerCancel: triggerMode || isDisabled ? null : (_) => handleToggleSpray(num, false),
-                child: GestureDetector(
-                  onTapDown: isDisabled
-                      ? null
-                      : (_) {
-                          if (triggerMode) {
-                            handleActivateSpray(num);
-                          } else {
-                            handleToggleSpray(num, true);
-                          }
-                        },
-                  onTapUp: triggerMode || isDisabled ? null : (_) => handleToggleSpray(num, false),
-                  onTapCancel: triggerMode || isDisabled ? null : () => handleToggleSpray(num, false),
-                  behavior: HitTestBehavior.opaque,
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 150),
-                    opacity: isDisabled ? 0.6 : 1.0,
-                    child: AnimatedScale(
-                      duration: const Duration(milliseconds: 100),
-                      scale: isActive ? 1.05 : 1.0,
-                      curve: Curves.easeOut,
-                      child: Container(
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: isActive ? _darkenColor(color, 0.15) : color,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: isActive
-                              ? [
-                                  BoxShadow(
-                                    color: color.withAlpha(100),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ]
-                              : [],
-                        ),
-                        padding: const EdgeInsets.all(6),
-                        child: Text(
-                          label,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+              return GestureDetector(
+                onTap: isDisabled
+                    ? null
+                    : () {
+                        if (triggerMode) {
+                          handleActivateSpray(num);
+                        } else {
+                          final newState = !toggledSprays.contains(num);
+                          setState(() {
+                            if (newState) {
+                              toggledSprays.add(num);
+                            } else {
+                              toggledSprays.remove(num);
+                            }
+                          });
+                          handleToggleSpray(num, newState);
+                        }
+                      },
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 150),
+                  opacity: isDisabled ? 0.6 : 1.0,
+                  child: AnimatedScale(
+                    duration: const Duration(milliseconds: 100),
+                    scale: isDisabled ? 0.98 : 1.0,
+                    curve: Curves.easeOut,
+                    child: Container(
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: color.withAlpha(100),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
                           ),
+                        ],
+                      ),
+                      padding: const EdgeInsets.all(6),
+                      child: Text(
+                        label,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
                       ),
                     ),
@@ -235,11 +236,5 @@ final List<int> allClickedTrigger = [];
         ],
       ),
     );
-  }
-
-  Color _darkenColor(Color color, [double amount = 0.1]) {
-    final hsl = HSLColor.fromColor(color);
-    final darkened = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
-    return darkened.toColor();
   }
 }

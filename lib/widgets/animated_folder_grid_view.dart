@@ -10,44 +10,17 @@ class AnimatedGridView extends StatefulWidget {
   final List<FolderRecord> records;
   final String email;
 
-  const AnimatedGridView({super.key, required this.records, required this.email});
+  const AnimatedGridView({
+    super.key,
+    required this.records,
+    required this.email,
+  });
 
   @override
   State<AnimatedGridView> createState() => _AnimatedGridViewState();
 }
 
-class _AnimatedGridViewState extends State<AnimatedGridView> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final List<Animation<Offset>> _animations;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    );
-
-    _animations = List.generate(widget.records.length, (index) {
-      final start = index * 0.05;
-      final end = start + 0.5;
-      return Tween<Offset>(begin: const Offset(0, 0.5), end: Offset.zero).animate(
-        CurvedAnimation(
-          parent: _controller,
-          curve: Interval(start, end, curve: Curves.easeOut),
-        ),
-      );
-    });
-
-    _controller.forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
+class _AnimatedGridViewState extends State<AnimatedGridView> {
   Future<void> _openFolder(String slug) async {
     final folder = widget.records.firstWhere((f) => f.slug == slug);
     UserDataStore store = UserDataStore();
@@ -126,64 +99,52 @@ class _AnimatedGridViewState extends State<AnimatedGridView> with SingleTickerPr
       ),
       itemCount: widget.records.length,
       itemBuilder: (context, index) {
-        var record = widget.records[index];
+        final record = widget.records[index];
 
-        return AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            return Opacity(
-              opacity: _controller.value >= (index * 0.05) ? 1 : 0,
-              child: SlideTransition(
-                position: _animations[index],
-                child: child,
-              ),
-            );
-          },
-          child: GestureDetector(
-            onTap: () => _openFolder(record.slug),
-            child: Column(
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.themedColor(
-                        context,
-                        AppColors.gray100,
-                        AppColors.gray800.withAlpha(100),
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: record.imageUrl.isNotEmpty
-                          ? Image.network(record.imageUrl, fit: BoxFit.fill)
-                          : Icon(
-                              Icons.folder,
-                              size: 80,
-                              color: AppColors.themedColor(
-                                context,
-                                AppColors.green500,
-                                AppColors.gray300,
-                              ),
-                            ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  record.date,
-                  style: TextStyle(
+        return GestureDetector(
+          onTap: () => _openFolder(record.slug),
+          child: Column(
+            children: [
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
                     color: AppColors.themedColor(
                       context,
-                      AppColors.gray600,
-                      AppColors.gray400,
+                      AppColors.gray100,
+                      AppColors.gray800.withAlpha(100),
                     ),
-                    fontSize: 10,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: record.imageUrl.isNotEmpty
+                        ? Image.network(record.imageUrl, fit: BoxFit.fill)
+                        : Icon(
+                            Icons.folder,
+                            size: 80,
+                            color: AppColors.themedColor(
+                              context,
+                              AppColors.green500,
+                              AppColors.gray300,
+                            ),
+                          ),
                   ),
                 ),
-                const SizedBox(height: 8),
-              ],
-            ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                record.date,
+                style: TextStyle(
+                  color: AppColors.themedColor(
+                    context,
+                    AppColors.gray600,
+                    AppColors.gray400,
+                  ),
+                  fontSize: 10,
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
           ),
         );
       },

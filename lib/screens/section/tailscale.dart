@@ -49,14 +49,12 @@ class TailscaleSectionState extends State<TailscaleSection> {
 
   Future<void> forceSync() async {
     AppSnackBar.loading(context, "Force syncing tailscale devices...", id: "force-sync");
-    final result = await CustomUpdater.checkCustomUpdate(
-      state: this,
-      deviceID: data.uuid.value,
-      willUpdateTailscale: true,
-    );
-    DefaultConfig newConfig = result['data'];
-    data.tailscales.value = newConfig.tailscaleDevices;
-    await data.saveData();
+    // await CustomUpdater.checkCustomUpdate(
+    //   state: this,
+    //   deviceID: data.uuid.value,
+    //   willUpdateTailscale: true,
+    // );
+    await fetchDevices();
     if (mounted) {
       AppSnackBar.hide(context, id: "force-sync");
       AppSnackBar.success(context, "Force sync of tailscale devices is successful!");

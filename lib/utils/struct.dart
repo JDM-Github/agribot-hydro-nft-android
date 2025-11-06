@@ -478,7 +478,7 @@ class FolderRecord {
 // ];
 
 class PlantHistory {
-  final int id;
+  final String id;
   final dynamic src;
   final dynamic timestamp;
   final dynamic plantName;

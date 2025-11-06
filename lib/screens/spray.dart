@@ -62,7 +62,23 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
   String currentActions = '';
 
   void handleConnection() {
+    Connection.onError = (msg) {
+      AppSnackBar.hide(context, id: 'connection-loading');
+      AppSnackBar.error(context, msg);
+    };
+
+    Connection.onConnect = (msg) {
+      AppSnackBar.hide(context, id: 'connection-loading');
+      AppSnackBar.success(context, msg);
+    };
+
+    Connection.onDisconnect = (msg) {
+      AppSnackBar.info(context, msg);
+    };
+
     if (!AllStates.allState.value['conn']) {
+      AllStates.listenAll();
+      AppSnackBar.loading(context, 'Connecting...', id: 'connection-loading');
       Connection.init();
       Connection.connect();
     } else {
@@ -189,7 +205,6 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
   @override
   void initState() {
     super.initState();
-    AllStates.listenAll();
     screens = [
       TailscaleSection(
           key: tailscaleKey,
@@ -293,7 +308,6 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
             SocketService.emit("page_leave", {"id": SocketService.id, "page": getPage(previousIndex)});
             SocketService.emit("page_enter", {"id": SocketService.id, "page": getPage(selectedIndex)});
           }
-
           final isConnected = state["conn"] == true;
           final hideFab = _isBusy ||
               selectedIndex == 7 ||
@@ -556,15 +570,6 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
       case 1:
         return [
           SpeedDialChild(
-            child: Icon(
-              Icons.help_outline,
-              color: AppColors.themedColor(context, AppColors.gray700, AppColors.gray300),
-            ),
-            label: 'Help',
-            backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
-            labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
-          ),
-          SpeedDialChild(
               child: Icon(
                 Icons.play_arrow,
                 color: AppColors.themedColor(context, AppColors.blue500, AppColors.blue700),
@@ -635,12 +640,6 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
       case 2:
         return [
           SpeedDialChild(
-            child: Icon(Icons.help, color: AppColors.themedColor(context, AppColors.gray700, AppColors.gray300)),
-            label: 'Help',
-            backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
-            labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
-          ),
-          SpeedDialChild(
               child: Icon(Icons.sync, color: AppColors.themedColor(context, AppColors.blue500, AppColors.blue700)),
               label: 'Force Sync',
               backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
@@ -671,12 +670,6 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
       case 3:
         return [
           SpeedDialChild(
-            child: Icon(Icons.help, color: AppColors.themedColor(context, AppColors.gray700, AppColors.gray300)),
-            label: 'Help',
-            backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
-            labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
-          ),
-          SpeedDialChild(
               child: Icon(Icons.wifi, color: AppColors.themedColor(context, AppColors.blue500, AppColors.green500)),
               label: 'Scan Networks',
               backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
@@ -689,12 +682,6 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
         ];
       case 5:
         return [
-          SpeedDialChild(
-            child: Icon(Icons.help, color: AppColors.themedColor(context, AppColors.gray700, AppColors.gray300)),
-            label: 'Help',
-            backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
-            labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
-          ),
           SpeedDialChild(
               child: Icon(Icons.sync, color: AppColors.themedColor(context, AppColors.blue500, AppColors.blue700)),
               label: 'Force Sync',
@@ -764,12 +751,6 @@ class _ScannedPlantsScreenState extends State<ScannedPlantsScreen> {
 
       default:
         return [
-          SpeedDialChild(
-            child: Icon(Icons.help, color: AppColors.themedColor(context, AppColors.gray700, AppColors.gray300)),
-            label: 'Help',
-            backgroundColor: AppColors.themedColor(context, AppColors.gray100, AppColors.gray800),
-            labelBackgroundColor: AppColors.themedColor(context, AppColors.gray200, AppColors.gray700),
-          ),
         ];
     }
   }

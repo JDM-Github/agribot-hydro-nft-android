@@ -30,6 +30,10 @@ class Connection {
   static final ValueNotifier<PlantHistories> plantHistories = ValueNotifier([]);
   static final ValueNotifier<List<String>> logs = ValueNotifier([]);
 
+  static void Function(String message)? onError;
+  static void Function(String message)? onConnect;
+  static void Function(String message)? onDisconnect;
+
   static bool parseBool(dynamic data) {
     if (data is bool) return data;
     if (data is num) return data != 0;
@@ -37,23 +41,36 @@ class Connection {
     return false;
   }
 
+  static bool isAlreadyInit = false;
 
   static void init() {
     SocketService.init();
     final socket = SocketService.socket;
     if (socket == null) return;
+    if (Connection.isAlreadyInit) return;
+
+    Connection.isAlreadyInit = true;
 
     socket.on('connect', (_) {
       isConnected.value = true;
+      onConnect?.call('Connected');
     });
 
     socket.on('disconnect', (_) {
       _resetStates();
+      onDisconnect?.call('Disconnected');
     });
 
     socket.on('connect_error', (err) {
       _resetStates();
+      String message = 'Connection failed: $err';
+      if (err.toString().contains('Failed host lookup')) {
+        message =
+            'Connection failed: Could not reach host.\nMake sure your device is added in Tailscale and connected.';
+      }
+      onError?.call(message);
     });
+
 
     socket.on('tcrt5000', (data) => tcrt5000.value = Map<String, dynamic>.from(data));
     socket.on('waterSensors', (data) {
@@ -107,7 +124,6 @@ class Connection {
       }
       plantHistories.value = unique.values.take(6).toList();
     });
-
   }
 
   static void emitSetLogDate(String date) {

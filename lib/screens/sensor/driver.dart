@@ -16,12 +16,12 @@ class Driver extends StatefulWidget {
 }
 
 class _DriverState extends State<Driver> {
+  String currentDirection = ''; 
   bool isMoving = false;
   int speed = 60;
   int tempSpeed = 60;
-  String currentMoving = '';
 
-  FocusNode focusNode = FocusNode();
+  final FocusNode focusNode = FocusNode();
 
   @override
   void initState() {
@@ -37,66 +37,28 @@ class _DriverState extends State<Driver> {
 
   Future<void> _sendCommand(String action, [int? value]) async {
     final endpoint = value != null ? '/drive/$action?speed=$value' : '/drive/$action';
-
-    AppSnackBar.loading(
-      context,
-      'AGRIBOT ${action.toUpperCase()} command...',
-      id: 'robot-drive',
-    );
+    AppSnackBar.loading(context, 'AGRIBOT ${action.toUpperCase()} command...', id: 'robot-drive');
 
     try {
       final handler = RequestHandler();
-      final response = await handler.authFetch(
-        endpoint,
-        method: 'POST',
-      );
+      final response = await handler.authFetch(endpoint, method: 'POST');
 
       final success = response[0] == true;
-      final data = response[1];
+      final data = response.length > 1 ? response[1] : null;
 
       if (!success) {
         final errorMessage = data?['message'] ?? 'Unknown error';
-
-        if (action == 'forward') {
-          if (mounted) {
-            AppSnackBar.error(
-              context,
-              'Movement blocked: $errorMessage',
-            );
-          }
-
-          if (mounted) {
-            setState(() {
-              isMoving = false;
-              currentMoving = '';
-            });
-            AppSnackBar.hide(context, id: 'robot-drive');
-          }
-
-          return;
-        }
         if (mounted) {
-          AppSnackBar.error(
-            context,
-            'Failed to $action robot: $errorMessage',
-          );
+          AppSnackBar.error(context, 'Failed to $action robot: $errorMessage');
         }
       } else {
-        if (action != 'stop') {
-          if (mounted) {
-            AppSnackBar.success(
-              context,
-              'AGRIBOT $action command executed successfully!',
-            );
-          }
+        if (action != 'stop' && mounted) {
+          AppSnackBar.success(context, 'AGRIBOT $action command executed successfully!');
         }
       }
     } catch (err) {
       if (mounted) {
-        AppSnackBar.error(
-          context,
-          'Network error: $err',
-        );
+        AppSnackBar.error(context, 'Network error: $err');
       }
     } finally {
       if (mounted) {
@@ -105,80 +67,93 @@ class _DriverState extends State<Driver> {
     }
   }
 
-  Future<void> _startMoving(String action) async {
-    if (currentMoving == action || (isMoving && widget.isRobotRunning)) return;
-    setState(() {
-      isMoving = true;
-      currentMoving = action;
-    });
-    final actionLabel = switch (action) {
-      'forward' => 'Moving Forward',
-      'left' => 'Turning Left',
-      'right' => 'Turning Right',
-      'backward' => 'Moving Backward',
-      _ => 'Moving',
-    };
-    AppSnackBar.loading(context, '$actionLabel at $speed% speed...', id: 'robot-drive');
-    await _sendCommand(action, speed);
+  Future<void> _toggleMove(String direction) async {
+    if (widget.isRobotRunning) return;
+
+    if (currentDirection == direction) {
+      await _stopMoving();
+    } else {
+      if (isMoving && currentDirection.isNotEmpty) {
+        await _stopMoving();
+        await Future.delayed(const Duration(milliseconds: 300));
+      }
+
+      setState(() {
+        currentDirection = direction;
+        isMoving = true;
+      });
+
+      final label = switch (direction) {
+        'forward' => 'Moving Forward',
+        'left' => 'Turning Left',
+        'right' => 'Turning Right',
+        'backward' => 'Moving Backward',
+        _ => 'Moving',
+      };
+
+      AppSnackBar.loading(context, '$label at $speed% speed...', id: 'robot-drive');
+      await _sendCommand(direction, speed);
+    }
   }
 
   Future<void> _stopMoving() async {
     if (!isMoving) return;
+
+    final stoppedDirection = currentDirection;
     setState(() {
       isMoving = false;
-      currentMoving = '';
+      currentDirection = '';
     });
+
     AppSnackBar.hide(context, id: 'robot-drive');
     await _sendCommand('stop');
+
+    if (mounted) {
+      AppSnackBar.info(context, 'Stopped moving $stoppedDirection');
+    }
   }
 
   void _commitSpeed() {
     if (speed == tempSpeed) return;
     speed = tempSpeed;
-		AppSnackBar.info(context, "Speed set to $speed%");
+    AppSnackBar.info(context, "Speed set to $speed%");
   }
 
   Widget _buildButton(BuildContext ctx, String label, Color color, String move) {
-    final bool disabled = widget.isRobotRunning || (isMoving && currentMoving != move);
-    final bool isActive = currentMoving == move && isMoving;
+    final bool disabled = widget.isRobotRunning;
+    final bool isActive = currentDirection == move && isMoving;
 
-    return Listener(
-      onPointerUp: (_) => _stopMoving(),
-      onPointerCancel: (_) => _stopMoving(),
-      child: GestureDetector(
-        onTapDown: disabled ? null : (_) => _startMoving(move),
-        onTapUp: disabled ? null : (_) => _stopMoving(),
-        onTapCancel: disabled ? null : _stopMoving,
-        behavior: HitTestBehavior.opaque,
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 150),
-          opacity: disabled ? 0.5 : 1.0,
-          child: AnimatedScale(
-            scale: isActive ? 1.05 : 1.0,
-            duration: const Duration(milliseconds: 100),
-            curve: Curves.easeOut,
-            child: Container(
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: isActive ? _darkenColor(color, 0.15) : color,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: isActive
-                    ? [
-                        BoxShadow(
-                          color: color.withAlpha(100),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
-                        ),
-                      ]
-                    : [],
-              ),
-              child: Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
+    return GestureDetector(
+      onTap: disabled ? null : () => _toggleMove(move),
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 150),
+        opacity: disabled ? 0.5 : 1.0,
+        child: AnimatedScale(
+          scale: isActive ? 1.05 : 1.0,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          child: Container(
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: isActive ? _darkenColor(color, 0.15) : color,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: isActive
+                  ? [
+                      BoxShadow(
+                        color: color.withAlpha(120),
+                        blurRadius: 12,
+                        offset: const Offset(0, 3),
+                      ),
+                    ]
+                  : [],
+            ),
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
@@ -196,6 +171,7 @@ class _DriverState extends State<Driver> {
   @override
   Widget build(BuildContext context) {
     final bg = AppColors.themedColor(context, AppColors.gray200, AppColors.gray800);
+
     return Focus(
       focusNode: focusNode,
       child: Container(
@@ -224,10 +200,7 @@ class _DriverState extends State<Driver> {
               ],
             ),
             const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: _speedDropdown(),
-            )
+            SizedBox(width: double.infinity, child: _speedDropdown())
           ],
         ),
       ),

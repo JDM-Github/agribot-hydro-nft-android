@@ -3,6 +3,7 @@ import '../utils/colors.dart';
 
 class AppSnackBar {
   static final Map<String, _SnackbarData> _activeSnackbars = {};
+  static OverlayEntry? _loadingOverlay;
 
   static void success(BuildContext context, String message) {
     _show(
@@ -46,6 +47,7 @@ class AppSnackBar {
 
   static void loading(BuildContext context, String message, {String id = "loading"}) {
     hide(context, id: id);
+    _showLoadingOverlay(context);
     _show(
       context,
       message,
@@ -66,6 +68,8 @@ class AppSnackBar {
       }
       _activeSnackbars.clear();
     }
+
+    _hideLoadingOverlay();
   }
 
   static void _show(
@@ -94,7 +98,7 @@ class AppSnackBar {
 
     overlayEntry = OverlayEntry(
       builder: (context) => Positioned(
-        bottom: 20,
+        bottom: 100,
         left: 16,
         right: 16,
         child: Material(
@@ -129,7 +133,7 @@ class AppSnackBar {
       ),
     );
 
-    Overlay.of(context).insert(overlayEntry);
+    Overlay.of(context, rootOverlay: true).insert(overlayEntry);
     controller.forward();
 
     final data = _SnackbarData(entry: overlayEntry, controller: controller);
@@ -140,6 +144,37 @@ class AppSnackBar {
     if (autoClose) {
       Future.delayed(const Duration(seconds: 2), () => data.dismiss());
     }
+  }
+
+  static void _showLoadingOverlay(BuildContext context) {
+    _hideLoadingOverlay(); 
+
+    final bgColor = AppColors.gray800.withAlpha(120);
+
+    _loadingOverlay = OverlayEntry(
+      builder: (context) => Stack(
+        children: [
+          Positioned.fill(
+            child: Container(
+              color: bgColor,
+              child: const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.green500),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    Overlay.of(context, rootOverlay: true).insert(_loadingOverlay!);
+  }
+
+
+  static void _hideLoadingOverlay() {
+    _loadingOverlay?.remove();
+    _loadingOverlay = null;
   }
 }
 

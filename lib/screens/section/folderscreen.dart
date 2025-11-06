@@ -141,19 +141,82 @@ class FolderSectionState extends State<FolderSection> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.themedColor(
+                      context,
+                      AppColors.gray200,
+                      AppColors.gray800,
+                    ),
+                    foregroundColor: AppColors.themedColor(
+                      context,
+                      AppColors.gray900,
+                      AppColors.gray100,
+                    ),
+                    disabledBackgroundColor: AppColors.themedColor(
+                      context,
+                      AppColors.gray100,
+                      AppColors.gray900.withAlpha(80),
+                    ),
+                    disabledForegroundColor: AppColors.themedColor(
+                      context,
+                      AppColors.gray400,
+                      AppColors.gray500,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  ),
                   onPressed: currentPage > 1 ? () => _goToPage(currentPage - 1) : null,
                   child: const Text("← Prev"),
                 ),
                 const SizedBox(width: 12),
-                Text("Page $currentPage of $totalPages"),
+                Text(
+                  "Page $currentPage of $totalPages",
+                  style: TextStyle(
+                    color: AppColors.themedColor(
+                      context,
+                      AppColors.gray700,
+                      AppColors.gray300,
+                    ),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
                 const SizedBox(width: 12),
                 ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.themedColor(
+                      context,
+                      AppColors.gray200,
+                      AppColors.gray800,
+                    ),
+                    foregroundColor: AppColors.themedColor(
+                      context,
+                      AppColors.gray900,
+                      AppColors.gray100,
+                    ),
+                    disabledBackgroundColor: AppColors.themedColor(
+                      context,
+                      AppColors.gray100,
+                      AppColors.gray900.withAlpha(80),
+                    ),
+                    disabledForegroundColor: AppColors.themedColor(
+                      context,
+                      AppColors.gray400,
+                      AppColors.gray500,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  ),
                   onPressed: currentPage < totalPages ? () => _goToPage(currentPage + 1) : null,
                   child: const Text("Next →"),
                 ),
               ],
             ),
-          ),
+          )
+
       ],
     );
   }

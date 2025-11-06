@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:android/classes/snackbar.dart';
 import 'package:android/connection/all_states.dart';
@@ -393,6 +394,7 @@ class LiveFeedScreen extends StatelessWidget {
                           child: ValueListenableBuilder<PlantHistories>(
                             valueListenable: Connection.plantHistories,
                             builder: (context, histories, _) {
+                              print(histories);
                               if (histories.isEmpty) {
                                 return Center(
                                   child: Text(
@@ -455,22 +457,71 @@ class LiveFeedScreen extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
             ),
             alignment: Alignment.center,
-            child: history.src != null
+            child: history.src != null && history.src.toString().isNotEmpty
                 ? ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      history.src.toString(),
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      height: 150,
-                      errorBuilder: (_, __, ___) => Icon(Icons.broken_image,
-                          color: AppColors.themedColor(context, AppColors.gray600, AppColors.gray400)),
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => Scaffold(
+                              backgroundColor: Colors.black,
+                              body: Stack(
+                                children: [
+                                  Center(
+                                    child: InteractiveViewer(
+                                      panEnabled: true,
+                                      minScale: 0.8,
+                                      maxScale: 5.0,
+                                      child: Image.memory(
+                                        base64Decode(history.src.toString().split(',').last),
+                                        fit: BoxFit.contain,
+                                        errorBuilder: (_, __, ___) => const Icon(
+                                          Icons.broken_image,
+                                          color: Colors.white54,
+                                          size: 80,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: 40,
+                                    left: 10,
+                                    child: IconButton(
+                                      icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
+                                      onPressed: () => Navigator.pop(context),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                      child: Hero(
+                        tag: "imageHero",
+                        child: Image.memory(
+                          base64Decode(history.src.toString().split(',').last),
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: 150,
+                          errorBuilder: (_, __, ___) => Icon(
+                            Icons.broken_image,
+                            color: AppColors.themedColor(context, AppColors.gray600, AppColors.gray400),
+                          ),
+                        ),
+                      ),
                     ),
                   )
                 : Text(
                     "No Image",
                     style: TextStyle(
-                      color: AppColors.themedColor(context, AppColors.gray700, AppColors.gray400),
+                      color: AppColors.themedColor(
+                        context,
+                        AppColors.gray700,
+                        AppColors.gray400,
+                      ),
                     ),
                   ),
           ),

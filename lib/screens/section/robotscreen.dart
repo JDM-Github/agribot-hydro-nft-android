@@ -170,7 +170,7 @@ class _RobotScreenState extends State<RobotScreen> {
                       Card(
                         color: AppColors.themedColor(context, AppColors.gray200, AppColors.gray950),
                         child: AspectRatio(
-                          aspectRatio: 16 / 9,
+                          aspectRatio: 16 / 12,
                           child: Stack(
                             alignment: Alignment.center,
                             children: [
